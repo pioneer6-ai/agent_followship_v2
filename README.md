@@ -1062,6 +1062,35 @@ endpoints below are relative to that. `GET /` serves the dashboard page itself.
 |---|---|---|
 | GET | `/` | The dashboard HTML page |
 | GET | `/staff/calendar` | Staff calendar management UI |
+| GET | `/staff/login` | Staff login page |
+| GET | `/staff/accounts` | Staff account management page (admin only) |
+| POST | `/api/calendar/login` | Staff/calendar login endpoint |
+| POST | `/api/calendar/logout` | Logout endpoint |
+| GET | `/api/calendar/session` | Get current session info |
+| GET | `/api/calendar/availability` | Query available appointment slots |
+| GET | `/api/calendar/appointments` | List all appointments |
+| GET | `/api/calendar/appointments/pending` | List pending appointment requests |
+| GET | `/api/calendar/appointments/{id}` | Get specific appointment details |
+| POST | `/api/calendar/appointments` | Create new appointment request |
+| POST | `/api/calendar/appointments/{id}/approve` | Approve pending appointment (staff/admin) |
+| POST | `/api/calendar/appointments/{id}/decline` | Decline pending appointment (staff/admin) |
+| POST | `/api/calendar/appointments/{id}/cancel` | Cancel confirmed appointment (staff/admin) |
+| POST | `/api/calendar/appointments/{id}/complete` | Mark appointment as completed (staff/admin) |
+| GET | `/api/calendar/config` | Get calendar configuration (staff/admin) |
+| POST | `/api/calendar/config` | Update calendar configuration (admin only) |
+| GET | `/api/calendar/blocked-periods` | List blocked time periods |
+| POST | `/api/calendar/blocked-periods` | Create blocked time period (admin only) |
+| GET | `/api/calendar/audit` | Get calendar audit log |
+| GET | `/api/staff/accounts` | List all staff accounts (admin only) |
+| POST | `/api/staff/accounts` | Create new staff account (admin only) |
+| POST | `/api/staff/accounts/{id}/role` | Change account role (admin only) |
+| POST | `/api/staff/accounts/{id}/deactivate` | Deactivate staff account (admin only) |
+| POST | `/api/staff/accounts/{id}/reactivate` | Reactivate staff account (admin only) |
+| POST | `/api/staff/accounts/{id}/reset-password` | Reset account password (admin only) |
+| POST | `/api/staff/change-password` | Change own password |
+| GET | `/api/calendar/csrf-token` | Get CSRF token (internal, use `/api/calendar/session` instead) |
+| GET | `/api/staff/session` | Get staff session info (internal, use `/api/calendar/session` instead) |
+| GET | `/api/staff/accounts-page` | Staff accounts page HTML (internal) |
 | GET | `/api/status` | Agent statistics and metrics |
 | GET | `/api/config` | The active clinic policy |
 | GET | `/api/patients` | Every patient in the system |

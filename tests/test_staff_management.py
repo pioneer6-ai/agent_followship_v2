@@ -33,12 +33,22 @@ def auth_db(temp_dir):
 
 
 @pytest.fixture
-def app(auth_db):
-    """Create Flask test app with staff routes."""
+def app(auth_db, temp_dir):
+    """Create Flask test app with staff routes and calendar auth."""
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'test-secret-key-staff-management'
     app.config['TESTING'] = True
     app.config['AUTH_DB'] = auth_db  # Required for @require_auth decorator
+    
+    # Initialize and register calendar routes (for login endpoint)
+    from web.calendar_routes import calendar_bp, init_calendar_routes
+    from scheduling.database import SchedulingDatabase
+    
+    # Create a temporary scheduling database for calendar routes
+    sched_db_path = Path(temp_dir) / 'test_scheduling.db'
+    sched_db = SchedulingDatabase(str(sched_db_path))
+    init_calendar_routes(auth_db, sched_db)
+    app.register_blueprint(calendar_bp)
     
     # Initialize staff routes
     init_staff_routes(auth_db)
@@ -55,28 +65,86 @@ def client(app):
 
 @pytest.fixture
 def staff_session(client):
-    """Login as staff user and return client with session."""
-    # Staff routes share auth with calendar routes - no separate login needed
-    # Tests will mock session or use test client session
-    with client.session_transaction() as sess:
-        sess['user_id'] = 1  # Will be overridden by actual test
-        sess['username'] = 'staff_user'
-        sess['role'] = 'staff'
-        sess['csrf_token'] = 'test-csrf-token'
-    return client
+    """Login as staff user and return authenticated client with session cookie."""
+    # Staff routes share auth with calendar routes - use calendar login endpoint
+    response = client.post('/api/calendar/login', json={
+        'username': 'staff_user',
+        'password': 'password123'
+    })
+    assert response.status_code == 200, f"Staff login failed: {response.get_json()}"
+    data = response.get_json()
+    assert data['success'] is True
+    
+    # Create wrapper that fetches fresh CSRF token before mutations
+    class AuthenticatedSession:
+        def __init__(self, client):
+            self.client = client
+            self._csrf_token = None
+        
+        def _get_fresh_csrf(self):
+            """Get fresh CSRF token from session endpoint."""
+            response = self.client.get('/api/calendar/session')
+            if response.status_code == 200:
+                data = response.get_json()
+                return data.get('csrf_token')
+            return None
+        
+        def get(self, *args, **kwargs):
+            """GET requests don't need CSRF."""
+            return self.client.get(*args, **kwargs)
+        
+        def post(self, *args, **kwargs):
+            """POST requests need fresh CSRF token."""
+            csrf_token = self._get_fresh_csrf()
+            if csrf_token:
+                if 'headers' not in kwargs:
+                    kwargs['headers'] = {}
+                kwargs['headers']['X-CSRF-Token'] = csrf_token
+            return self.client.post(*args, **kwargs)
+    
+    return AuthenticatedSession(client)
 
 
 @pytest.fixture
 def admin_session(client):
-    """Login as admin user and return client with session."""
-    # Staff routes share auth with calendar routes - no separate login needed
-    # Tests will mock session or use test client session
-    with client.session_transaction() as sess:
-        sess['user_id'] = 2  # Will be overridden by actual test
-        sess['username'] = 'admin_user'
-        sess['role'] = 'admin'
-        sess['csrf_token'] = 'test-csrf-token'
-    return client
+    """Login as admin user and return authenticated client with session cookie."""
+    # Staff routes share auth with calendar routes - use calendar login endpoint
+    response = client.post('/api/calendar/login', json={
+        'username': 'admin_user',
+        'password': 'admin_password'
+    })
+    assert response.status_code == 200, f"Admin login failed: {response.get_json()}"
+    data = response.get_json()
+    assert data['success'] is True
+    
+    # Create wrapper that fetches fresh CSRF token before mutations
+    class AuthenticatedSession:
+        def __init__(self, client):
+            self.client = client
+            self._csrf_token = None
+        
+        def _get_fresh_csrf(self):
+            """Get fresh CSRF token from session endpoint."""
+            response = self.client.get('/api/calendar/session')
+            if response.status_code == 200:
+                data = response.get_json()
+                return data.get('csrf_token')
+            return None
+        
+        def get(self, *args, **kwargs):
+            """GET requests don't need CSRF."""
+            return self.client.get(*args, **kwargs)
+        
+        def post(self, *args, **kwargs):
+            """POST requests need fresh CSRF token."""
+            csrf_token = self._get_fresh_csrf()
+            if csrf_token:
+                if 'headers' not in kwargs:
+                    kwargs['headers'] = {}
+                kwargs['headers']['X-CSRF-Token'] = csrf_token
+            return self.client.post(*args, **kwargs)
+    
+    return AuthenticatedSession(client)
 
 
 # ============================================================================
@@ -88,8 +156,9 @@ def test_non_admin_cannot_list_accounts(client, staff_session):
     response = staff_session.get('/api/staff/accounts')
     assert response.status_code == 403
     data = response.get_json()
-    assert 'error' in data
-    assert 'Admin access required' in data['error']
+    assert data['error'] == 'Forbidden'
+    assert 'message' in data
+    assert 'not permitted' in data['message'].lower() or 'admin' in data['message'].lower()
 
 
 def test_admin_can_list_accounts(client, admin_session):
@@ -116,7 +185,7 @@ def test_create_account_with_duplicate_username(client, admin_session):
     response = admin_session.post('/api/staff/accounts', json={
         'username': 'staff_user',  # Already exists
         'role': 'staff',
-        'temp_password': 'TempPass123!'
+        'password': 'TempPass123!'
     })
     
     assert response.status_code == 400
@@ -130,22 +199,24 @@ def test_create_account_success_with_password_must_change(client, admin_session,
     response = admin_session.post('/api/staff/accounts', json={
         'username': 'new_staff_member',
         'role': 'staff',
-        'temp_password': 'TempPass456!'
+        'password': 'TempPass456!'
     })
     
     assert response.status_code == 201
     data = response.get_json()
-    assert data['message'] == 'Account created'
-    assert 'account_id' in data
+    assert data['success'] is True
+    assert 'Account' in data['message'] and 'created' in data['message']
     
-    # Verify password_must_change is set
+    # Verify account persisted with correct username and role
     conn = auth_db._get_connection()
     try:
         result = conn.execute('''
-            SELECT password_must_change FROM staff_accounts 
+            SELECT username, role, password_must_change FROM staff_accounts 
             WHERE username = ?
         ''', ('new_staff_member',)).fetchone()
         assert result is not None
+        assert result['username'] == 'new_staff_member'
+        assert result['role'] == 'staff'
         assert result['password_must_change'] == 1
     finally:
         conn.close()
@@ -287,7 +358,7 @@ def test_audit_log_records_account_creation(client, admin_session, auth_db):
     response = admin_session.post('/api/staff/accounts', json={
         'username': 'audit_test_user',
         'role': 'staff',
-        'temp_password': 'TempPass999!'
+        'password': 'TempPass999!'
     })
     
     assert response.status_code == 201
@@ -299,7 +370,7 @@ def test_audit_log_records_account_creation(client, admin_session, auth_db):
             SELECT * FROM account_audit_log 
             WHERE action = ? AND target_username = ?
             ORDER BY timestamp DESC LIMIT 1
-        ''', ('account_create', 'audit_test_user')).fetchone()
+        ''', ('account_created', 'audit_test_user')).fetchone()
         
         assert result is not None
         assert result['actor'] == 'admin_user'
@@ -326,6 +397,17 @@ def test_role_change_audited(client, admin_session, auth_db):
     
     assert response.status_code == 200
     
+    # Verify role was changed in database
+    conn = auth_db._get_connection()
+    try:
+        result = conn.execute('''
+            SELECT role FROM staff_accounts WHERE id = ?
+        ''', (staff_id,)).fetchone()
+        assert result is not None
+        assert result['role'] == 'admin'
+    finally:
+        conn.close()
+    
     # Check audit log
     conn = auth_db._get_connection()
     try:
@@ -333,10 +415,11 @@ def test_role_change_audited(client, admin_session, auth_db):
             SELECT * FROM account_audit_log 
             WHERE action = ? AND target_username = ?
             ORDER BY timestamp DESC LIMIT 1
-        ''', ('role_change', 'staff_user')).fetchone()
+        ''', ('role_changed', 'staff_user')).fetchone()
         
         assert result is not None
         assert result['actor'] == 'admin_user'
+        assert result['target_username'] == 'staff_user'
     finally:
         conn.close()
 

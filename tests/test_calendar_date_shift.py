@@ -79,23 +79,30 @@ def client(app):
 
 @pytest.fixture
 def authenticated_client(client, auth_db):
-    """Login and return authenticated client."""
+    """Login and return authenticated client with CSRF token refresh."""
     # Login
     response = client.post('/api/calendar/login',
         json={'username': 'test_staff', 'password': 'password123'})
     assert response.status_code == 200
     data = response.get_json()
     
-    # Store CSRF token
-    csrf_token = data['csrf_token']
-    
-    # Create a simple wrapper to add CSRF token to requests
+    # Create a wrapper that refreshes CSRF token from session endpoint
     class AuthenticatedClient:
-        def __init__(self, client, csrf_token):
+        def __init__(self, client, initial_csrf_token):
             self.client = client
-            self.csrf_token = csrf_token
+            self.csrf_token = initial_csrf_token
+        
+        def _refresh_csrf(self):
+            """Refresh CSRF token from session endpoint."""
+            response = self.client.get('/api/calendar/session')
+            if response.status_code == 200:
+                data = response.get_json()
+                if 'csrf_token' in data:
+                    self.csrf_token = data['csrf_token']
         
         def post(self, *args, **kwargs):
+            # Refresh CSRF token before each POST
+            self._refresh_csrf()
             if 'headers' not in kwargs:
                 kwargs['headers'] = {}
             kwargs['headers']['X-CSRF-Token'] = self.csrf_token
@@ -104,7 +111,7 @@ def authenticated_client(client, auth_db):
         def get(self, *args, **kwargs):
             return self.client.get(*args, **kwargs)
     
-    return AuthenticatedClient(client, csrf_token)
+    return AuthenticatedClient(client, data['csrf_token'])
 
 
 # ============================================================================
@@ -265,47 +272,66 @@ def test_appointment_list_filters_by_correct_dates(authenticated_client, schedul
     Test that querying appointments by date range returns correct results.
     
     Ensures that date filtering doesn't suffer from timezone shifts.
+    Uses dates in 2027 with mocked "now" to make test deterministic.
     """
-    # Create bookings for Sept 24, 25, 26 (Wed-Fri)
-    dates = ['2026-09-24', '2026-09-25', '2026-09-26']
+    from unittest.mock import patch
     
-    for slot_date in dates:
-        booking_data = {
-            'patient_id': f'P_{slot_date}',
-            'patient_name': f'Patient {slot_date}',
-            'slot_date': slot_date,
-            'slot_session': 'afternoon',
-            'slot_time': '15:00'
-        }
-        response = authenticated_client.post('/api/calendar/appointments', json=booking_data)
-        assert response.status_code == 201
+    # Mock datetime.now() to return a fixed past date (before Sept 2027)
+    # Use Jan 1, 2027 00:00:00 in Asia/Singapore timezone
+    clinic_tz = ZoneInfo('Asia/Singapore')
+    mock_now = datetime(2027, 1, 1, 0, 0, 0, tzinfo=clinic_tz)
     
-    # Query for Sept 25 only
-    response = authenticated_client.get('/api/calendar/appointments?start_date=2026-09-25&end_date=2026-09-25')
+    with patch('web.calendar_routes.datetime') as mock_datetime:
+        # Configure the mock
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.fromisoformat = datetime.fromisoformat
+        mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+        
+        # September 2027: Sept 23 (Thu), Sept 24 (Fri), Sept 25 (Sat)
+        # Use Sept 23-24 which are working days
+        dates = ['2027-09-23', '2027-09-24']
+        
+        for slot_date in dates:
+            booking_data = {
+                'patient_id': f'P_{slot_date}',
+                'patient_name': f'Patient {slot_date}',
+                'slot_date': slot_date,
+                'slot_session': 'afternoon',
+                'slot_time': '15:00'
+            }
+            response = authenticated_client.post('/api/calendar/appointments', json=booking_data)
+            # Check for actual error if it fails
+            if response.status_code != 201:
+                error_detail = response.get_json()
+                assert response.status_code == 201, \
+                    f"Failed to create booking for {slot_date}: {error_detail}"
+    
+    # Query for Sept 24 only
+    response = authenticated_client.get('/api/calendar/appointments?start_date=2027-09-24&end_date=2027-09-24')
     assert response.status_code == 200
     
     data = response.get_json()
     appointments = data['appointments']
     
-    # Should get exactly one appointment for Sept 25
+    # Should get exactly one appointment for Sept 24
     assert len(appointments) == 1, \
-        f"Expected 1 appointment for Sept 25, got {len(appointments)}"
-    assert appointments[0]['slot_date'] == '2026-09-25'
+        f"Expected 1 appointment for Sept 24, got {len(appointments)}"
+    assert appointments[0]['slot_date'] == '2027-09-24'
     
-    # Query for Sept 24-26 range
-    response = authenticated_client.get('/api/calendar/appointments?start_date=2026-09-24&end_date=2026-09-26')
+    # Query for Sept 23-24 range
+    response = authenticated_client.get('/api/calendar/appointments?start_date=2027-09-23&end_date=2027-09-24')
     assert response.status_code == 200
     
     data = response.get_json()
     appointments = data['appointments']
     
-    # Should get all three appointments
-    assert len(appointments) == 3, \
-        f"Expected 3 appointments for Sept 24-26, got {len(appointments)}"
+    # Should get both appointments
+    assert len(appointments) == 2, \
+        f"Expected 2 appointments for Sept 23-24, got {len(appointments)}"
     
     # Verify dates are correct and in order
     found_dates = [appt['slot_date'] for appt in appointments]
-    assert found_dates == ['2026-09-24', '2026-09-25', '2026-09-26'], \
+    assert found_dates == ['2027-09-23', '2027-09-24'], \
         f"Date filter returned wrong dates: {found_dates}"
 
 

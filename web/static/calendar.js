@@ -546,7 +546,7 @@ async function saveSettings(event) {
         const data = await apiCall('/config', {
             method: 'POST',
             headers: {'X-CSRF-Token': csrfToken},
-            body: JSON.stringify({config})
+            body: JSON.stringify(config)
         });
         
         if (data.success) {

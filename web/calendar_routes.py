@@ -262,15 +262,15 @@ def update_config(**kwargs):
     
     Request body: partial or complete configuration object
         {
-            "clinic_timezone": "America/New_York",
-            "working_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+            "timezone_name": "America/New_York",
+            "working_days": [0, 1, 2, 3, 4],
             "sessions": {
                 "morning": {"start": "08:00", "end": "12:00"},
                 "afternoon": {"start": "13:00", "end": "17:00"}
             },
             "slot_duration_minutes": 30,
-            "default_capacity_per_slot": 3,
-            "hold_expiry_minutes": 15
+            "slots_per_session": 3,
+            "pending_expiry_minutes": 15
         }
     
     Note: Be cautious when changing configuration as it may affect existing appointments.
@@ -293,9 +293,9 @@ def update_config(**kwargs):
         # Update with new values
         updated_config = {**current_config, **data}
         
-        # Validate required fields
-        required = ['clinic_timezone', 'working_days', 'sessions', 
-                   'slot_duration_minutes', 'default_capacity_per_slot']
+        # Validate required fields (match database schema)
+        required = ['timezone_name', 'working_days', 'sessions', 
+                   'slot_duration_minutes', 'slots_per_session']
         missing = [f for f in required if f not in updated_config]
         
         if missing:
@@ -470,7 +470,9 @@ def approve_appointment(appointment_id, **kwargs):
             'appointment': updated
         })
     else:
-        return jsonify(result), 400
+        # Return 404 for not found, 400 for validation failures
+        status_code = 404 if 'not found' in result.get('error', '').lower() else 400
+        return jsonify(result), status_code
 
 
 @calendar_bp.route('/appointments/<int:appointment_id>/decline', methods=['POST'])
