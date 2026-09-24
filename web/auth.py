@@ -193,7 +193,7 @@ class AuthDatabase:
         conn = self._get_connection()
         try:
             row = conn.execute('''
-                SELECT s.user_id, s.username, s.role, s.expires_at, a.is_active
+                SELECT s.user_id, s.username, a.role, s.expires_at, a.is_active
                 FROM sessions s
                 JOIN staff_accounts a ON s.user_id = a.id
                 WHERE s.session_id = ?
