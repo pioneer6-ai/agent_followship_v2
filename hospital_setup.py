@@ -154,7 +154,11 @@ class LlmSettings:
     #   provider="disabled"
 
 
-LLM = LlmSettings()
+LLM = LlmSettings(
+    provider="openai-compatible",
+    model="gemini-3.6-flash",
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+)
 
 
 # =============================================================================
