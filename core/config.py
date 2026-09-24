@@ -38,6 +38,16 @@ class ClinicPolicyConfig:
         high_urgency_threshold_days: Days overdue before case becomes HIGH urgency
         critical_urgency_threshold_days: Days overdue before case becomes CRITICAL urgency
         reminder_interval_days: Minimum days to wait between reminder attempts
+        clinic_timezone: IANA timezone name (e.g. "Asia/Singapore") used to
+            determine "today"/"now" for the clinic. This is the single
+            source of truth for temporal grounding: the orchestrator's daily
+            cycle and the scheduling layer's slot search both derive
+            "current date" from a Clock configured with this timezone (see
+            core/clock.py), never from a hardcoded date or a bare
+            ``date.today()`` call.
+        booking_window_days: How many days ahead of "today" the agent may
+            offer or accept appointment slots for. Enforced server-side in
+            the scheduling layer regardless of what a client/UI requests.
     """
     working_hours: tuple[int, int] = (9, 18)  # 9 AM to 6 PM
     max_reminders_before_escalation: int = 3
@@ -45,6 +55,8 @@ class ClinicPolicyConfig:
     high_urgency_threshold_days: int = 30
     critical_urgency_threshold_days: int = 60
     reminder_interval_days: int = 7
+    clinic_timezone: str = "Asia/Singapore"
+    booking_window_days: int = 7
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "ClinicPolicyConfig":
@@ -61,6 +73,8 @@ class ClinicPolicyConfig:
             AGENT_REMINDER_INTERVAL_DAYS           (int, default 7)
             AGENT_HIGH_URGENCY_THRESHOLD_DAYS      (int, default 30)
             AGENT_CRITICAL_URGENCY_THRESHOLD_DAYS  (int, default 60)
+            AGENT_CLINIC_TIMEZONE                  (str, default "Asia/Singapore")
+            AGENT_BOOKING_WINDOW_DAYS              (int, default 7)
 
         Args:
             env: Mapping to read instead of ``os.environ`` (tests).
@@ -92,5 +106,13 @@ class ClinicPolicyConfig:
                 source,
                 "AGENT_REMINDER_INTERVAL_DAYS",
                 defaults.reminder_interval_days,
+            ),
+            clinic_timezone=str(
+                source.get("AGENT_CLINIC_TIMEZONE") or ""
+            ).strip() or defaults.clinic_timezone,
+            booking_window_days=_int(
+                source,
+                "AGENT_BOOKING_WINDOW_DAYS",
+                defaults.booking_window_days,
             ),
         )

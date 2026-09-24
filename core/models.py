@@ -54,6 +54,7 @@ class CaseStatus(Enum):
     BOOKED = "booked"                  # Successfully scheduled appointment
     DECLINED = "declined"              # Patient declined or postponed
     ESCALATED = "escalated"            # Transferred to staff for manual handling
+    OPTED_OUT = "opted_out"            # Patient asked not to be contacted again
 
 
 @dataclass
@@ -74,6 +75,9 @@ class PatientRecord:
         recall_interval_days: Recommended days between visits for this treatment type
         no_show_history: Number of previous no-shows (affects priority scoring)
         language: Patient's preferred language for messages (default: English)
+        opted_out: Whether the patient has asked not to be contacted again.
+            Once set, PolicyGuard blocks all further outbound/booking actions
+            for this patient regardless of urgency or reminder cadence.
     """
     patient_id: str
     name: str
@@ -84,6 +88,7 @@ class PatientRecord:
     recall_interval_days: int
     no_show_history: int = 0
     language: str = "en"
+    opted_out: bool = False
 
 
 @dataclass
@@ -104,6 +109,10 @@ class FollowUpCase:
         conversation_log: History of all interactions with the patient
         last_contacted: Date when the patient was last contacted
         reminder_count: Number of reminders sent for this case
+        next_followup_at: Explicit date to re-trigger this case on, if set.
+            Used by TriggerService's basic re-trigger check (Phase 1 only;
+            the fuller park-and-retry lifecycle - pending_reason,
+            contact_attempt_count, last_booking_window - is deferred).
     """
     patient: PatientRecord
     days_overdue: int
@@ -113,6 +122,7 @@ class FollowUpCase:
     conversation_log: list[str] = field(default_factory=list)
     last_contacted: Optional[date] = None
     reminder_count: int = 0
+    next_followup_at: Optional[date] = None
     
     def add_to_log(self, entry: str) -> None:
         """Add a timestamped entry to the conversation log."""
