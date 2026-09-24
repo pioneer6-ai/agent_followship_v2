@@ -87,18 +87,48 @@ def _duplicate_env_vars() -> Dict[str, int]:
 
 def _code_routes() -> Set[Tuple[str, str]]:
     """``(method, path)`` for every Flask route, normalised to ``{param}``."""
-    text = _read("web/app.py")
     routes: Set[Tuple[str, str]] = set()
-    pattern = re.compile(
+    
+    # Scan web/app.py for @app.route
+    text = _read("web/app.py")
+    app_pattern = re.compile(
         r"@app\.route\(\s*[\"']([^\"']+)[\"']\s*(?:,\s*methods=\[([^\]]*)\])?\s*\)"
     )
-    for path, methods in pattern.findall(text):
+    for path, methods in app_pattern.findall(text):
         path = re.sub(r"<[^>]+>", "{param}", path)
         if methods:
             for method in re.findall(r"[\"']([A-Z]+)[\"']", methods):
                 routes.add((method, path))
         else:
             routes.add(("GET", path))
+    
+    # Scan Blueprint files: calendar_routes.py and staff_routes.py
+    blueprint_files = [
+        ("web/calendar_routes.py", "/api/calendar"),  # calendar_bp with url_prefix
+        ("web/staff_routes.py", "/api/staff"),        # staff_bp with url_prefix
+    ]
+    
+    bp_pattern = re.compile(
+        r"@(?:calendar_bp|staff_bp)\.route\(\s*[\"']([^\"']+)[\"']\s*(?:,\s*methods=\[([^\]]*)\])?\s*\)"
+    )
+    
+    for file_path, url_prefix in blueprint_files:
+        try:
+            text = _read(file_path)
+            for path, methods in bp_pattern.findall(text):
+                # Apply URL prefix and normalize parameters
+                full_path = url_prefix + path
+                full_path = re.sub(r"<[^>]+>", "{param}", full_path)
+                
+                if methods:
+                    for method in re.findall(r"[\"']([A-Z]+)[\"']", methods):
+                        routes.add((method, full_path))
+                else:
+                    routes.add(("GET", full_path))
+        except FileNotFoundError:
+            # Blueprint file doesn't exist, skip it
+            pass
+    
     return routes
 
 
@@ -313,9 +343,10 @@ DEV_TOOLING: Set[str] = {
     "pytest",
     "pytest-cov",
     "sphinx",
+    "tzdata",  # Windows platform dependency for stdlib zoneinfo, not directly imported
 }
 
-_SOURCE_DIRS = ("tools", "agent", "core", "web", "utils", "scripts")
+_SOURCE_DIRS = ("tools", "agent", "core", "web", "utils", "scripts", "scheduling")
 _ROOT_MODULES = ("hospital_setup.py", "demo.py")
 
 

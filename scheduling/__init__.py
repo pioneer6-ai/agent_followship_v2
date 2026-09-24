@@ -1,0 +1,1 @@
+"""Scheduling module for calendar and appointment management."""

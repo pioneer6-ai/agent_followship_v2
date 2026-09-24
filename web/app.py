@@ -21,17 +21,29 @@ if __package__ in (None, ""):
 from flask import Flask, render_template, jsonify, request
 from datetime import date, datetime, timedelta
 import json
+import secrets
 
 from agent.orchestrator import FollowUpAgentOrchestrator
 from core.data_access import MockPatientDataStore, MockCalendarIntegration
 from core.models import PatientRecord, ContactChannel, CaseStatus, UrgencyLevel
 from core.config import ClinicPolicyConfig
 from utils.llm_parser import LLMPatientParser
+from core.urgency_config import UrgencyRulesConfig
+from core.configuration_store import ConfigurationStore
+from core.preview_engine import PreviewEngine
+from agent.business_rules import UrgencyScorer
+
+# Import calendar components
+from web.auth import AuthDatabase
+from web.calendar_routes import calendar_bp, init_calendar_routes
+from web.staff_routes import staff_bp, init_staff_routes
+from scheduling.database import SchedulingDatabase
 
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
+app.config['SECRET_KEY'] = secrets.token_hex(32)  # Generate secure secret
 
 # Initialize the agent orchestrator. DECIDE goes through Claude when
 # ANTHROPIC_API_KEY is set (the LLM may only pick actions the rule engine
@@ -39,16 +51,144 @@ app.config['JSON_SORT_KEYS'] = False
 data_store = MockPatientDataStore()
 calendar = MockCalendarIntegration()
 policy = ClinicPolicyConfig()
-agent = FollowUpAgentOrchestrator.with_llm_decisions(data_store, calendar, policy)
+
+
+# Initialize urgency configuration
+config_store = ConfigurationStore()
+urgency_config, had_error = config_store.load()
+if had_error:
+    print("[WARNING] Failed to load urgency config, using defaults")
+agent = FollowUpAgentOrchestrator.with_llm_decisions(data_store, calendar, policy, urgency_config=urgency_config)
 
 # Initialize LLM parser
 llm_parser = LLMPatientParser(use_llm=False)  # Set to True with API key for real LLM
+
+# Initialize calendar/scheduling system
+# Use absolute paths relative to this file's location
+_app_dir = Path(__file__).parent.parent
+auth_db = AuthDatabase(str(_app_dir / 'auth.db'))
+scheduling_db = SchedulingDatabase(str(_app_dir / 'scheduling.db'))
+init_calendar_routes(auth_db, scheduling_db)
+init_staff_routes(auth_db)
+app.register_blueprint(calendar_bp)
+app.register_blueprint(staff_bp)
+
+# Critical: Make auth_db available to decorators
+app.config['AUTH_DB'] = auth_db
 
 
 @app.route('/')
 def index():
     """Render the main dashboard page."""
     return render_template('dashboard.html')
+
+
+def is_safe_url(target):
+    """
+    Validate that a redirect URL is safe (local to this application).
+    Prevents open redirect vulnerabilities.
+    
+    Args:
+        target: URL to validate
+        
+    Returns:
+        True if URL is safe to redirect to, False otherwise
+    """
+    if not target:
+        return False
+    
+    # Must start with / and not //
+    if not target.startswith('/'):
+        return False
+    
+    if target.startswith('//'):
+        return False
+    
+    # Only allow paths, not full URLs
+    if '://' in target:
+        return False
+    
+    # Permitted paths
+    allowed_paths = ['/', '/staff/calendar', '/staff/login']
+    
+    # Check if target matches allowed paths or starts with them
+    return any(target == path or target.startswith(path + '?') for path in allowed_paths)
+
+
+@app.route('/staff/login')
+def staff_login_page():
+    """
+    Render the staff login page.
+    
+    If already authenticated, redirect to return URL or calendar.
+    Otherwise, show login form with return URL preserved.
+    """
+    # Check if already logged in
+    session_id = request.cookies.get('session_id')
+    if session_id:
+        user_info = auth_db.validate_session(session_id)
+        if user_info:
+            # Already authenticated, redirect to return URL
+            return_url = request.args.get('next', '/staff/calendar')
+            if is_safe_url(return_url):
+                from flask import redirect
+                return redirect(return_url)
+    
+    # Not authenticated, show login page
+    return render_template('staff_login.html')
+
+
+@app.route('/staff/calendar')
+def staff_calendar():
+    """
+    Render the staff calendar management page.
+    
+    Requires authentication. If not logged in, redirect to login page
+    with return URL.
+    """
+    # Check authentication
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/calendar')
+    
+    user_info = auth_db.validate_session(session_id)
+    if not user_info:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/calendar')
+    
+    # Check role (staff or admin)
+    if user_info['role'] not in ('staff', 'admin'):
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/calendar')
+    
+    return render_template('staff_calendar.html')
+
+
+@app.route('/staff/accounts')
+def staff_accounts():
+    """
+    Render the staff accounts management page (admin only).
+    
+    Requires authentication and admin role.
+    """
+    # Check authentication
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/accounts')
+    
+    user_info = auth_db.validate_session(session_id)
+    if not user_info:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/accounts')
+    
+    # Check admin role
+    if user_info['role'] != 'admin':
+        from flask import redirect
+        return redirect('/staff/calendar')  # Redirect non-admins to calendar
+    
+    return render_template('staff_accounts.html')
 
 
 @app.route('/api/status')
@@ -586,6 +726,195 @@ def import_patients():
             'success': False,
             'error': str(e)
         }), 500
+
+
+
+
+@app.route('/api/urgency-config', methods=['GET'])
+def get_urgency_config():
+    """
+    Get current urgency configuration.
+    
+    Returns:
+        JSON with current configuration including general thresholds,
+        treatment-specific overrides, missed appointment rules,
+        unanswered reminder rules, and escalation settings.
+        
+    Response format:
+        {
+            "success": true,
+            "config": {
+                "general_thresholds": {"medium": 14, "high": 30, "critical": 60},
+                "treatment_overrides": {},
+                "reminder_interval_days": 7,
+                "missed_appointment_rules": {...},
+                "unanswered_reminder_urgency_rules": {...},
+                "escalation_rules": {...}
+            }
+        }
+    """
+    try:
+        config, had_error = config_store.load()
+        return jsonify({
+            'success': True,
+            'config': config.to_dict()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/urgency-config', methods=['POST'])
+def save_urgency_config():
+    """
+    Save new urgency configuration.
+    
+    Validates the configuration, saves it to persistent storage,
+    records the change in the changelog, and re-scores all active
+    cases with the new rules.
+    
+    Request body:
+        Configuration object matching UrgencyRulesConfig schema.
+        
+    Returns:
+        {"success": true} on success, or validation errors on failure.
+        
+    Side effects:
+        - Persists configuration to config/urgency_rules.json
+        - Adds changelog entry to config/urgency_rules_changelog.json
+        - Re-scores all active cases with new urgency rules
+    """
+    try:
+        config_data = request.get_json()
+        
+        # Parse and validate
+        new_config = UrgencyRulesConfig.from_dict(config_data)
+        is_valid, errors = new_config.validate()
+        
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'validation_errors': errors
+            }), 400
+        
+        # Load old config for changelog
+        old_config, _ = config_store.load()
+        
+        # Save new config
+        success, error_msg = config_store.save(new_config, old_config)
+        
+        if success:
+            # Update global urgency_config
+            global urgency_config
+            urgency_config = new_config
+            
+            # Re-score all active cases with new configuration
+            agent.rescore_all_cases(urgency_config)
+            
+            return jsonify({'success': True})
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/urgency-config/preview', methods=['POST'])
+def preview_urgency_config():
+    """
+    Preview impact of proposed urgency configuration.
+    
+    Simulates applying the proposed configuration to all active patients
+    without making any changes. Preserves episode history to ensure
+    accurate consecutive_unanswered counts in the preview.
+    
+    Request body:
+        Proposed configuration object.
+        
+    Returns:
+        JSON with:
+        - List of all patients showing old vs new urgency levels
+        - Summary statistics (increased, decreased, unchanged)
+        - Explanations for each urgency change
+        
+    Guarantees:
+        - No external calls (messages, emails, etc.)
+        - No state modifications
+        - Episode tracking matches production scoring
+    """
+    try:
+        proposed_config_data = request.get_json()
+        
+        # Parse and validate proposed config
+        proposed_config = UrgencyRulesConfig.from_dict(proposed_config_data)
+        is_valid, errors = proposed_config.validate()
+        
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'validation_errors': errors
+            }), 400
+        
+        # Load current config
+        current_config, _ = config_store.load()
+        
+        # Get active cases for episode tracking
+        active_cases = {
+            case.patient.patient_id: case
+            for case in agent.get_active_cases()
+        }
+        
+        # Create preview engine
+        preview_engine = PreviewEngine(
+            data_store,
+            current_config,
+            policy=policy,
+            active_cases=active_cases
+        )
+        
+        # Generate preview
+        preview = preview_engine.preview_config_change(proposed_config, date.today())
+        
+        # Format changes for frontend
+        changes_formatted = []
+        for change in preview.changes:
+            changes_formatted.append({
+                'patient_name': change.patient_name,
+                'patient_id': change.patient_id,
+                'days_overdue': change.days_overdue,
+                'old_urgency': change.old_urgency.value,
+                'new_urgency': change.new_urgency.value,
+                'old_explanation': change.old_explanation,
+                'new_explanation': change.new_explanation,
+                'changed': change.urgency_changed,
+                'increased': change.urgency_increased,
+                'decreased': change.urgency_decreased
+            })
+        
+        return jsonify({
+            'success': True,
+            'preview': {
+                'changes': changes_formatted,
+                'summary': preview.summary
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 
 if __name__ == '__main__':

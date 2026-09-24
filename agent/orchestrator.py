@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 from core.clock import Clock, SystemClock
 from core.models import FollowUpCase, CaseStatus, ContactChannel
 from core.config import ClinicPolicyConfig
+from core.urgency_config import UrgencyRulesConfig
 from core.data_access import PatientDataStore, CalendarIntegration
 from core.actions import AgentAction
 from core.trigger_service import TriggerService
@@ -74,6 +75,7 @@ class FollowUpAgentOrchestrator:
         data_store: PatientDataStore,
         calendar: CalendarIntegration,
         policy: Optional[ClinicPolicyConfig] = None,
+        urgency_config: Optional[UrgencyRulesConfig] = None,
         notification_channels: Optional[Dict[ContactChannel, NotificationChannel]] = None,
         delivery_backend: Optional[DeliveryBackend] = None,
         decision_engine: Optional["DecisionEngine"] = None,
@@ -117,7 +119,8 @@ class FollowUpAgentOrchestrator:
 
         # Initialize core business logic components
         self.rule_engine = RecallRuleEngine(self.policy)
-        self.urgency_scorer = UrgencyScorer(self.policy)
+        self.urgency_config = urgency_config or UrgencyRulesConfig.get_default()
+        self.urgency_scorer = UrgencyScorer(self.urgency_config, self.policy)
 
         # Initialize communication components
         self.message_composer = MessageComposerAgent()
@@ -151,6 +154,7 @@ class FollowUpAgentOrchestrator:
         data_store: PatientDataStore,
         calendar: CalendarIntegration,
         policy: Optional[ClinicPolicyConfig] = None,
+        urgency_config: Optional[UrgencyRulesConfig] = None,
         *,
         model: Optional[str] = None,
         **kwargs: object,
@@ -179,11 +183,54 @@ class FollowUpAgentOrchestrator:
             A configured orchestrator.
         """
         resolved_policy = policy or ClinicPolicyConfig.from_env()
+        # Use the explicit urgency_config parameter (don't discard it)
+        urgency_config_arg = urgency_config
         kwargs.setdefault(
             "decision_engine",
             LlmDecisionEngine.from_environment(resolved_policy, model=model),
         )
-        return cls(data_store, calendar, resolved_policy, **kwargs)  # type: ignore[arg-type]
+        return cls(data_store, calendar, resolved_policy, urgency_config=urgency_config_arg, **kwargs)  # type: ignore[arg-type]
+
+    
+    def rescore_all_cases(self, new_urgency_config: UrgencyRulesConfig) -> None:
+        """
+        Re-score all active cases with new urgency configuration.
+        
+        This method is called when urgency configuration is updated through the
+        dashboard. It applies the new scoring rules to all active cases without
+        sending any messages.
+        
+        Args:
+            new_urgency_config: New urgency configuration to apply
+        """
+        self.urgency_config = new_urgency_config
+        self.urgency_scorer = UrgencyScorer(new_urgency_config, self.policy)
+        
+        from core.models import calculate_days_overdue
+        today = date.today()
+        
+        rescored_count = 0
+        for case in self.active_cases.values():
+            days_overdue = calculate_days_overdue(case.patient, today)
+            
+            # Use consecutive_unanswered from existing case
+            consecutive_unanswered = getattr(case, 'consecutive_unanswered_reminders', 0)
+            
+            # Re-score with new configuration
+            result = self.urgency_scorer.score(
+                case.patient,
+                days_overdue,
+                consecutive_unanswered=consecutive_unanswered
+            )
+            
+            if result:
+                new_urgency, new_explanation = result
+                case.urgency = new_urgency
+                case.urgency_explanation = new_explanation
+                rescored_count += 1
+        
+        print(f"[INFO] Re-scored {rescored_count} active cases with new urgency configuration")
+
 
     def run_daily_cycle(self, today: Optional[date] = None) -> list[FollowUpCase]:
         """
@@ -230,10 +277,37 @@ class FollowUpAgentOrchestrator:
         print("🧠 PHASE 2: DECIDE - Evaluating urgency and prioritizing...")
 
         # Score urgency for each case
+        # Restore episode history BEFORE scoring so unanswered-reminder rules use real state
         for case in overdue_cases:
-            case.urgency = self.urgency_scorer.score(case)
+            # Match existing episode by patient_id and episode_id
+            expected_episode_id = f"{case.patient.patient_id}_{case.patient.last_visit_date.isoformat()}"
+            previous = self.active_cases.get(case.patient.patient_id)
+            
+            consecutive_unanswered = 0
+            if previous and previous.episode_id == expected_episode_id:
+                # Same episode - preserve consecutive_unanswered count
+                consecutive_unanswered = previous.consecutive_unanswered_reminders
+            # else: different episode or no previous case - start fresh with 0
+            
+            # Score with restored state
+            from core.models import calculate_days_overdue
+            days_overdue = calculate_days_overdue(case.patient, today)
+            
+            result = self.urgency_scorer.score(
+                case.patient,
+                days_overdue,
+                consecutive_unanswered=consecutive_unanswered
+            )
+            
+            if result:
+                case.urgency, case.urgency_explanation = result
+            else:
+                case.urgency = UrgencyLevel.LOW
+                case.urgency_explanation = "Below minimum threshold"
+            
+            case.consecutive_unanswered_reminders = consecutive_unanswered
             print(f"   {case.patient.name}: {case.urgency.value.upper()} "
-                  f"({case.days_overdue} days overdue)")
+                  f"({case.days_overdue} days overdue) - {case.urgency_explanation}")
 
         # Sort by urgency (most urgent first)
         prioritized_cases = self.urgency_scorer.sort_by_urgency(overdue_cases)
@@ -334,6 +408,10 @@ class FollowUpAgentOrchestrator:
             current.last_contacted = previous.last_contacted
         if previous.conversation_log:
             current.conversation_log = list(previous.conversation_log)
+        # Preserve episode tracking fields if same episode
+        if hasattr(previous, "episode_id") and previous.episode_id == current.episode_id:
+            current.consecutive_unanswered_reminders = previous.consecutive_unanswered_reminders
+        # else: different episode - keep the fresh consecutive_unanswered_reminders (should be 0)
 
         # Preserve-unless-recomputed: a case rebuilt from the data store has
         # no way to know about a previously scheduled next_followup_at (it

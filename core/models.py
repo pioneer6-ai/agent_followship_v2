@@ -94,26 +94,24 @@ class PatientRecord:
 @dataclass
 class FollowUpCase:
     """
-    Represents a single follow-up case that requires agent action.
-    
-    This is the atomic unit of decision-making in the agent workflow.
-    Each case tracks a patient who needs follow-up and maintains the
-    conversation history and current status.
-    
+    Represents a single follow-up case requiring agent action.
+
     Attributes:
-        patient: Reference to the patient record
-        days_overdue: Number of days past the recommended recall date
-        urgency: Computed urgency level for prioritization
-        reason: Human-readable explanation for why follow-up is needed (for audit trail)
-        status: Current state in the workflow
-        conversation_log: History of all interactions with the patient
-        last_contacted: Date when the patient was last contacted
-        reminder_count: Number of reminders sent for this case
-        next_followup_at: Explicit date to re-trigger this case on, if set.
-            Used by TriggerService's basic re-trigger check (Phase 1 only;
-            the fuller park-and-retry lifecycle - pending_reason,
-            contact_attempt_count, last_booking_window - is deferred).
+        patient: Reference to the patient record.
+        days_overdue: Days past the recommended recall date.
+        urgency: Computed urgency level.
+        reason: Explanation of why follow-up is needed.
+        status: Current workflow state.
+        conversation_log: History of interactions.
+        last_contacted: Date of the latest contact.
+        reminder_count: Number of reminders sent.
+        episode_id: Identifier for this patient's recall episode.
+        consecutive_unanswered_reminders: Unanswered reminders in this episode.
+        urgency_explanation: Explanation of the urgency score.
+        next_followup_at: Explicit date to re-trigger this case, if set.
+            Used by TriggerService's basic re-trigger check.
     """
+
     patient: PatientRecord
     days_overdue: int
     urgency: UrgencyLevel
@@ -122,8 +120,37 @@ class FollowUpCase:
     conversation_log: list[str] = field(default_factory=list)
     last_contacted: Optional[date] = None
     reminder_count: int = 0
+    episode_id: str = field(default="")
+    consecutive_unanswered_reminders: int = 0
+    urgency_explanation: str = ""
     next_followup_at: Optional[date] = None
-    
+
+    def __post_init__(self):
+        if not self.episode_id:
+            self.episode_id = (
+                f"{self.patient.patient_id}_"
+                f"{self.patient.last_visit_date.isoformat()}"
+            )
+
     def add_to_log(self, entry: str) -> None:
-        """Add a timestamped entry to the conversation log."""
+        """Add an entry to the conversation log."""
         self.conversation_log.append(entry)
+
+
+def calculate_days_overdue(patient: PatientRecord, as_of_date: date) -> int:
+    """
+    Calculate days overdue for a patient relative to a specific date.
+    
+    This is the canonical calculation used by both preview and immediate
+    application to ensure consistency.
+    
+    Args:
+        patient: Patient record with last_visit_date and recall_interval_days
+        as_of_date: The reference date (typically date.today())
+        
+    Returns:
+        Number of days overdue (can be negative if not yet due)
+    """
+    from datetime import timedelta
+    recall_date = patient.last_visit_date + timedelta(days=patient.recall_interval_days)
+    return (as_of_date - recall_date).days
