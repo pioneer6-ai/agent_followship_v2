@@ -313,9 +313,10 @@ DEV_TOOLING: Set[str] = {
     "pytest",
     "pytest-cov",
     "sphinx",
+    "tzdata",  # Windows platform dependency for stdlib zoneinfo, not directly imported
 }
 
-_SOURCE_DIRS = ("tools", "agent", "core", "web", "utils", "scripts")
+_SOURCE_DIRS = ("tools", "agent", "core", "web", "utils", "scripts", "scheduling")
 _ROOT_MODULES = ("hospital_setup.py", "demo.py")
 
 

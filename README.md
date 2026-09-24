@@ -1061,6 +1061,7 @@ endpoints below are relative to that. `GET /` serves the dashboard page itself.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | The dashboard HTML page |
+| GET | `/staff/calendar` | Staff calendar management UI |
 | GET | `/api/status` | Agent statistics and metrics |
 | GET | `/api/config` | The active clinic policy |
 | GET | `/api/patients` | Every patient in the system |
@@ -1075,6 +1076,9 @@ endpoints below are relative to that. `GET /` serves the dashboard page itself.
 | POST | `/api/import-patients` | Store the rows and run a cycle |
 | POST | `/api/book-appointment` | Book an appointment manually |
 | POST | `/api/import-escalated-cases` | Import escalated cases as JSON |
+| GET | `/api/urgency-config` | Get current urgency configuration |
+| POST | `/api/urgency-config` | Save new urgency configuration |
+| POST | `/api/urgency-config/preview` | Preview urgency configuration changes |
 
 ### GET /api/status
 Get agent statistics and operational metrics.

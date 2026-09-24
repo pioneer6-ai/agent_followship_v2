@@ -104,6 +104,9 @@ class FollowUpCase:
         conversation_log: History of all interactions with the patient
         last_contacted: Date when the patient was last contacted
         reminder_count: Number of reminders sent for this case
+        episode_id: Unique identifier for this recall episode (patient_id + last_visit_date)
+        consecutive_unanswered_reminders: Count of unanswered reminders in current episode
+        urgency_explanation: Explanation of urgency score
     """
     patient: PatientRecord
     days_overdue: int
@@ -113,7 +116,33 @@ class FollowUpCase:
     conversation_log: list[str] = field(default_factory=list)
     last_contacted: Optional[date] = None
     reminder_count: int = 0
+    episode_id: str = field(default="")
+    consecutive_unanswered_reminders: int = 0
+    urgency_explanation: str = ""
+    
+    def __post_init__(self):
+        if not self.episode_id:
+            self.episode_id = f"{self.patient.patient_id}_{self.patient.last_visit_date.isoformat()}"
     
     def add_to_log(self, entry: str) -> None:
         """Add a timestamped entry to the conversation log."""
         self.conversation_log.append(entry)
+
+
+def calculate_days_overdue(patient: PatientRecord, as_of_date: date) -> int:
+    """
+    Calculate days overdue for a patient relative to a specific date.
+    
+    This is the canonical calculation used by both preview and immediate
+    application to ensure consistency.
+    
+    Args:
+        patient: Patient record with last_visit_date and recall_interval_days
+        as_of_date: The reference date (typically date.today())
+        
+    Returns:
+        Number of days overdue (can be negative if not yet due)
+    """
+    from datetime import timedelta
+    recall_date = patient.last_visit_date + timedelta(days=patient.recall_interval_days)
+    return (as_of_date - recall_date).days

@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Follow-up Calendar - Staff</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .user-badge {
+            background: rgba(255,255,255,0.15);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #229954;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
+        .btn-sm {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.85rem;
+        }
+        
+        .error-message {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .nav-bar {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .calendar-controls {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .calendar-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .calendar-nav h2 {
+            font-size: 1.5rem;
+            color: #2c3e50;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+        }
+        
+        .calendar-header {
+            text-align: center;
+            font-weight: 600;
+            padding: 0.5rem;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        .calendar-day {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            padding: 0.8rem;
+            min-height: 80px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .calendar-day:hover {
+            border-color: #3498db;
+            background: #ebf5fb;
+        }
+        
+        .calendar-day.other-month {
+            opacity: 0.3;
+        }
+        
+        .calendar-day.today {
+            border-color: #3498db;
+            background: #ebf5fb;
+            font-weight: 600;
+        }
+        
+        .calendar-day.selected {
+            border-color: #2980b9;
+            background: #d6eaf8;
+        }
+        
+        .day-number {
+            font-size: 1rem;
+            margin-bottom: 0.3rem;
+        }
+        
+        .day-indicator {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 0.2rem;
+        }
+        
+        .indicator-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .indicator-confirmed {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .indicator-blocked {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .day-schedule {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .schedule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        .session-block {
+            margin-bottom: 2rem;
+        }
+        
+        .session-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            background: #ecf0f1;
+            border-radius: 4px;
+        }
+        
+        .time-slots {
+            display: grid;
+            gap: 0.5rem;
+        }
+        
+        .time-slot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .time-slot:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .slot-time {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .slot-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .slot-capacity {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+        
+        .slot-available {
+            border-left: 4px solid #27ae60;
+        }
+        
+        .slot-limited {
+            border-left: 4px solid #f39c12;
+        }
+        
+        .slot-full {
+            border-left: 4px solid #e74c3c;
+            background: #fafafa;
+        }
+        
+        .slot-blocked {
+            border-left: 4px solid #95a5a6;
+            background: #f8f9fa;
+            opacity: 0.7;
+        }
+        
+        .appointments-list {
+            margin-top: 0.5rem;
+            padding-left: 1rem;
+        }
+        
+        .appointment-item {
+            padding: 0.5rem;
+            margin: 0.3rem 0;
+            background: #f8f9fa;
+            border-radius: 3px;
+            font-size: 0.9rem;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge-confirmed {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-declined {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .badge-blocked {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        .modal-header h3 {
+            font-size: 1.3rem;
+            color: #2c3e50;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #95a5a6;
+        }
+        
+        .close-btn:hover {
+            color: #7f8c8d;
+        }
+        
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.7rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .modal-footer {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #ecf0f1;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #7f8c8d;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #7f8c8d;
+        }
+        
+        .appointment-detail {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .detail-value {
+            color: #2c3e50;
+        }
+        
+        .session-config {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .session-config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>📅 Follow-up Calendar</h1>
+        <div class="header-right">
+            <div class="user-badge">
+                <span id="userDisplay"></span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Navigation Bar -->
+        <div class="nav-bar">
+            <a href="/" class="btn btn-secondary">← Back to Dashboard</a>
+            <button id="newRequestBtn" class="btn btn-success">+ New Follow-up Request</button>
+            <button id="settingsBtn" class="btn btn-primary hidden">⚙️ Calendar Settings</button>
+            <button id="accountsBtn" class="btn btn-primary hidden" onclick="window.location.href='/staff/accounts'">👥 Staff Accounts</button>
+            <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+            <button id="logoutBtn" class="btn btn-danger">Logout</button>
+        </div>
+        
+        <div id="alertContainer"></div>
+        
+        <!-- Calendar View -->
+        <div class="calendar-controls">
+            <div class="calendar-nav">
+                <h2 id="currentMonth"></h2>
+                <div class="nav-buttons">
+                    <button id="prevMonthBtn" class="btn btn-secondary btn-sm">← Previous</button>
+                    <button id="todayBtn" class="btn btn-primary btn-sm">Today</button>
+                    <button id="nextMonthBtn" class="btn btn-secondary btn-sm">Next →</button>
+                </div>
+            </div>
+            
+            <div class="calendar-grid" id="calendarGrid">
+                <!-- Calendar will be rendered here -->
+            </div>
+        </div>
+        
+        <!-- Day Schedule View -->
+        <div id="daySchedule" class="day-schedule hidden">
+            <div class="schedule-header">
+                <h3 id="selectedDateTitle"></h3>
+                <button id="closeDayViewBtn" class="btn btn-secondary btn-sm">Close Day View</button>
+            </div>
+            <div id="scheduleContent"></div>
+        </div>
+    </div>
+    
+    <!-- New Request Modal -->
+    <div id="newRequestModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>New Follow-up Request</h3>
+                <button class="close-btn" onclick="closeNewRequestModal()">×</button>
+            </div>
+            <form id="newRequestForm">
+                <div id="newRequestError" class="error-message" style="display: none;"></div>
+                <div class="form-group">
+                    <label>Patient ID *</label>
+                    <input type="text" id="reqPatientId" required>
+                </div>
+                <div class="form-group">
+                    <label>Patient Name *</label>
+                    <input type="text" id="reqPatientName" required>
+                </div>
+                <div class="form-group">
+                    <label>Follow-up Reason</label>
+                    <textarea id="reqReason" rows="2" placeholder="Optional"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input type="date" id="reqDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Session *</label>
+                    <select id="reqSession" required>
+                        <option value="">Select session...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Time Slot *</label>
+                    <select id="reqTime" required>
+                        <option value="">Select time...</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeNewRequestModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Create Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Calendar Settings</h3>
+                <button class="close-btn" onclick="closeSettingsModal()">×</button>
+            </div>
+            <form id="settingsForm">
+                <div class="form-group">
+                    <label>Timezone</label>
+                    <input type="text" id="settingsTimezone" value="America/New_York">
+                </div>
+                
+                <div class="form-group">
+                    <label>Working Days</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day0" value="0">
+                            <label for="day0">Monday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day1" value="1">
+                            <label for="day1">Tuesday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day2" value="2">
+                            <label for="day2">Wednesday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day3" value="3">
+                            <label for="day3">Thursday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day4" value="4">
+                            <label for="day4">Friday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day5" value="5">
+                            <label for="day5">Saturday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day6" value="6">
+                            <label for="day6">Sunday</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Slot Duration (minutes)</label>
+                        <input type="number" id="settingsSlotDuration" value="30" min="5" max="120">
+                    </div>
+                    <div class="form-group">
+                        <label>Slots Per Session</label>
+                        <input type="number" id="settingsCapacity" value="8" min="1" max="50">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Pending Hold Expiry (minutes)</label>
+                    <input type="number" id="settingsExpiry" value="1440" min="60" max="10080">
+                </div>
+                
+                <div class="form-group">
+                    <label>Sessions</label>
+                    <div id="sessionsConfig"></div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Appointment Detail Modal -->
+    <div id="appointmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Appointment Details</h3>
+                <button class="close-btn" onclick="closeAppointmentModal()">×</button>
+            </div>
+            <div id="appointmentDetail"></div>
+            <div class="modal-footer" id="appointmentActions"></div>
+        </div>
+    </div>
+    
+    <!-- Decline Modal -->
+    <div id="declineModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Decline Appointment</h3>
+                <button class="close-btn" onclick="closeDeclineModal()">×</button>
+            </div>
+            <div class="form-group">
+                <label>Reason for declining *</label>
+                <textarea id="declineReason" rows="3" required></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeclineModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDecline()">Decline</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/calendar.js"></script>
+</body>
+</html>
