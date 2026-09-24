@@ -65,6 +65,36 @@
         .slot-btn:hover { border-color: #667eea; background: #f7f8ff; }
         .slot-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        .date-group { margin-bottom: 4px; }
+        .date-group .date-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+        .time-btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .time-btn {
+            padding: 10px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            transition: all 0.15s;
+        }
+        .time-btn:hover { border-color: #667eea; background: #f7f8ff; }
+        .time-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .slot-section-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin: 4px 0 2px;
+        }
+        .slot-section-label.secondary { color: #a0aec0; }
+
         .btn {
             padding: 12px 22px;
             border: none;
@@ -193,6 +223,34 @@
             if (data.success) setStatusPill(data.status);
         }
 
+        function formatDateLabel(dateStr) {
+            return new Date(dateStr + 'T00:00:00').toLocaleDateString(
+                undefined, { weekday: 'long', month: 'long', day: 'numeric' }
+            );
+        }
+
+        function renderDateGroup(dateEntry) {
+            const group = document.createElement('div');
+            group.className = 'date-group';
+
+            const label = document.createElement('div');
+            label.className = 'date-label';
+            label.textContent = formatDateLabel(dateEntry.date);
+            group.appendChild(label);
+
+            const row = document.createElement('div');
+            row.className = 'time-btn-row';
+            dateEntry.times.forEach(t => {
+                const btn = document.createElement('button');
+                btn.className = 'time-btn';
+                btn.textContent = t.label;
+                btn.addEventListener('click', () => selectSlotOption(dateEntry.date, t.session, t.time, btn));
+                row.appendChild(btn);
+            });
+            group.appendChild(row);
+            return group;
+        }
+
         async function loadSlots() {
             const res = await fetch(`${BASE}/available-slots`);
             const data = await res.json();
@@ -200,6 +258,39 @@
                 slotList.innerHTML = '<p style="color:#999;">Could not load available times.</p>';
                 return;
             }
+
+            // Detailed (date + session/time) shape - render per-date time
+            // buttons. Falls back to the legacy date-only shape when the
+            // calendar doesn't support slot-level detail.
+            if (Array.isArray(data.dates)) {
+                if (data.dates.length === 0) {
+                    slotList.innerHTML = '<p style="color:#999;">No times are currently available in the next '
+                        + data.booking_window_days + ' days.</p>';
+                    return;
+                }
+                slotList.innerHTML = '';
+
+                if (data.used_no_show_preference && data.preferred_dates && data.preferred_dates.length > 0) {
+                    const preferredLabel = document.createElement('div');
+                    preferredLabel.className = 'slot-section-label';
+                    preferredLabel.textContent = 'Closest to your usual time';
+                    slotList.appendChild(preferredLabel);
+                    data.preferred_dates.forEach(entry => slotList.appendChild(renderDateGroup(entry)));
+
+                    if (data.other_dates && data.other_dates.length > 0) {
+                        const otherLabel = document.createElement('div');
+                        otherLabel.className = 'slot-section-label secondary';
+                        otherLabel.textContent = 'Other available times';
+                        slotList.appendChild(otherLabel);
+                        data.other_dates.forEach(entry => slotList.appendChild(renderDateGroup(entry)));
+                    }
+                } else {
+                    data.dates.forEach(entry => slotList.appendChild(renderDateGroup(entry)));
+                }
+                return;
+            }
+
+            // Legacy date-only shape.
             if (data.slots.length === 0) {
                 slotList.innerHTML = '<p style="color:#999;">No times are currently available in the next '
                     + data.booking_window_days + ' days.</p>';
@@ -209,12 +300,29 @@
             data.slots.forEach(dateStr => {
                 const btn = document.createElement('button');
                 btn.className = 'slot-btn';
-                btn.textContent = new Date(dateStr + 'T00:00:00').toLocaleDateString(
-                    undefined, { weekday: 'long', month: 'long', day: 'numeric' }
-                );
+                btn.textContent = formatDateLabel(dateStr);
                 btn.addEventListener('click', () => selectSlot(dateStr, btn));
                 slotList.appendChild(btn);
             });
+        }
+
+        async function selectSlotOption(dateStr, session, time, btn) {
+            document.querySelectorAll('.time-btn, .slot-btn').forEach(b => b.disabled = true);
+            const res = await fetch(`${BASE}/select-slot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ appointment_date: dateStr, session: session, time: time })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showFeedback(bookingFeedback, data.message, 'success');
+                setStatusPill(data.status);
+                slotList.innerHTML = '';
+                noSlotBtn.style.display = 'none';
+            } else {
+                showFeedback(bookingFeedback, data.message || data.error || 'Booking failed.', 'error');
+                await loadSlots(); // refresh in case the slot was taken
+            }
         }
 
         async function selectSlot(dateStr, btn) {

@@ -24,7 +24,7 @@ from core.clock import FixedClock
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from web.app import agent, app, calendar, data_store, patient_portal_tokens
+from web.app import agent, app, calendar, data_store, patient_portal_tokens, scheduling_db
 
 
 def reset_state():
@@ -32,14 +32,27 @@ def reset_state():
     Reset every module-level singleton the portal touches, so tests never
     inherit state from each other or from test_web_upload.py (which shares
     the same `data_store`/`agent` module).
+
+    `calendar` is the production SchedulingDatabaseCalendarAdapter, backed
+    by the SAME scheduling_db the app (and the Staff Calendar routes) use -
+    there is no in-memory fake to clear here. Appointments are cleared
+    directly from the database instead, since tests run against the real
+    scheduling subsystem, exactly like the app does in production.
     """
     data_store._patients.clear()
     data_store._last_contacted.clear()
-    calendar._appointments.clear()
-    calendar._blocked_dates.clear()
     agent.active_cases.clear()
     agent.undelivered.clear()
     patient_portal_tokens._tokens.clear()
+
+    conn = scheduling_db.get_connection()
+    try:
+        conn.execute("DELETE FROM appointment_requests")
+        conn.execute("DELETE FROM audit_log")
+        conn.execute("DELETE FROM blocked_periods")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 @pytest.fixture
@@ -225,8 +238,8 @@ class TestSuccessfulBooking:
     def test_booking_appears_through_the_shared_calendar_integration(self, client):
         """
         Proves there is no second, independent calendar: the SAME
-        MockCalendarIntegration instance the dashboard reads from must show
-        the appointment made through the portal.
+        SchedulingDatabaseCalendarAdapter/scheduling_db the Staff Calendar
+        routes use must show the appointment made through the portal.
         """
         seed_patient_with_case()
         token = issue_token(client, "P100")
@@ -241,23 +254,45 @@ class TestSuccessfulBooking:
         appointments = calendar.get_appointments_for_patient("P100")
         assert len(appointments) == 1
         assert appointments[0][0].isoformat() == chosen
+        assert appointments[0][1] == "confirmed"
 
         # And the existing staff dashboard endpoint agrees.
         cases_resp = client.get("/api/cases")
         matching = [c for c in cases_resp.get_json() if c["patient_id"] == "P100"]
         assert matching and matching[0]["status"] == "booked"
 
+        # And the row lives in the SAME scheduling_db the Staff Calendar
+        # routes read from - not a copy, the actual row.
+        conn = scheduling_db.get_connection()
+        try:
+            row = conn.execute(
+                "SELECT status, source FROM appointment_requests WHERE patient_id = ?",
+                ("P100",),
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row is not None
+        assert row["status"] == "confirmed"
+        assert row["source"] == "patient_portal"
+
     def test_only_a_successful_calendar_result_changes_status_to_booked(self, client):
-        """If the calendar rejects the booking (e.g. weekend/blocked date
-        smuggled through some other path), status must not become BOOKED."""
+        """If the scheduling subsystem rejects the booking (e.g. a blocked
+        period covering every offered slot), status must not become
+        BOOKED."""
         seed_patient_with_case()
-        case = agent.get_case_by_patient_id("P100")
-        # Block every currently-offered slot directly on the calendar to
-        # force a booking failure despite passing initial validation.
         token = issue_token(client, "P100")
         slots = client.get(f"/api/patient-portal/{token}/available-slots").get_json()["slots"]
-        for s in slots:
-            calendar.block_date(date.fromisoformat(s))
+
+        # Block the whole window directly in the scheduling database, the
+        # same mechanism the Staff Calendar's "add blocked period" endpoint
+        # uses, to force a booking failure despite passing the portal's own
+        # initial validation.
+        scheduling_db.add_blocked_period(
+            start=f"{slots[0]}T00:00:00Z",
+            end=f"{slots[-1]}T23:59:59Z",
+            reason="test: force booking failure",
+            created_by="test",
+        )
 
         resp = client.post(
             f"/api/patient-portal/{token}/select-slot",
@@ -271,19 +306,32 @@ class TestSuccessfulBooking:
     def test_slot_becomes_unavailable_before_click_is_rejected(self, client):
         """
         Simulates a race: the slot was offered to this patient, but the
-        calendar's own capacity is exhausted by other bookings before this
-        click reaches the server. MockCalendarIntegration allows up to 10
-        appointments per day (a capacity model, not single-slot-per-day),
-        so the race is reproduced by filling that day to capacity.
+        scheduling subsystem's own per-slot capacity is exhausted by other
+        bookings before this click reaches the server.
         """
         seed_patient_with_case()
         token = issue_token(client, "P100")
         slots = client.get(f"/api/patient-portal/{token}/available-slots").get_json()["slots"]
         contested = date.fromisoformat(slots[0])
 
-        # Fill the day to the calendar's own capacity with other patients.
-        for i in range(10):
-            calendar.book_appointment(f"OTHER-{i}", contested, "cleaning")
+        # Fill every session/time slot on that date to the configured
+        # per-slot capacity with other patients, via the same CalendarService
+        # the staff calendar uses.
+        config = scheduling_db.get_config()
+        capacity = config["slots_per_session"]
+        day_slots = calendar.calendar_service.generate_slots_for_date(contested.isoformat())
+        for slot in day_slots:
+            for i in range(capacity):
+                calendar.calendar_service.check_capacity_and_book(
+                    patient_id=f"OTHER-{slot['time']}-{i}",
+                    patient_name="Other Patient",
+                    slot_datetime_utc=slot["datetime_utc"],
+                    slot_date=slot["date"],
+                    slot_session=slot["session"],
+                    slot_time=slot["time"],
+                    requested_by="staff",
+                    source="staff",
+                )
 
         resp = client.post(
             f"/api/patient-portal/{token}/select-slot",
@@ -291,6 +339,11 @@ class TestSuccessfulBooking:
         )
         data = resp.get_json()
         assert data["success"] is False
+        # Backend-side re-validation (_validate_selected_slot) catches this
+        # before the booking service is even called, since it re-queries
+        # availability fresh - confirming the "never trust the browser"
+        # requirement holds all the way through.
+        assert "error" in data
         case = agent.get_case_by_patient_id("P100")
         assert case.status != CaseStatus.BOOKED
 

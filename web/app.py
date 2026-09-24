@@ -21,27 +21,68 @@ if __package__ in (None, ""):
 from flask import Flask, render_template, jsonify, request
 from datetime import date, datetime, timedelta
 import json
+import secrets
 
 from agent.orchestrator import FollowUpAgentOrchestrator
 from agent.patient_chat import PatientChatAssistant
 from core.data_access import MockPatientDataStore, MockCalendarIntegration
+from core.scheduling_calendar_adapter import SchedulingDatabaseCalendarAdapter
+from core.slot_ranking import rank_slots_by_missed_appointment
 from core.models import PatientRecord, ContactChannel, CaseStatus, UrgencyLevel
 from core.config import ClinicPolicyConfig
 from utils.llm_parser import LLMPatientParser
 from web.patient_portal_auth import PatientAccessTokenStore
+from core.urgency_config import UrgencyRulesConfig
+from core.configuration_store import ConfigurationStore
+from core.preview_engine import PreviewEngine
+from agent.business_rules import UrgencyScorer
+
+# Import calendar components
+from web.auth import AuthDatabase
+from web.calendar_routes import calendar_bp, init_calendar_routes
+from web.staff_routes import staff_bp, init_staff_routes
+from scheduling.database import SchedulingDatabase
 
 
 # Initialize Flask app
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
+app.config['SECRET_KEY'] = secrets.token_hex(32)  # Generate secure secret
 
 # Initialize the agent orchestrator. DECIDE goes through Claude when
 # ANTHROPIC_API_KEY is set (the LLM may only pick actions the rule engine
 # permits); with no key it runs rules-only, so this is safe offline.
 data_store = MockPatientDataStore()
-calendar = MockCalendarIntegration()
 policy = ClinicPolicyConfig()
-agent = FollowUpAgentOrchestrator.with_llm_decisions(data_store, calendar, policy)
+
+# SINGLE PRODUCTION APPOINTMENT SOURCE OF TRUTH.
+#
+# scheduling_db (SchedulingDatabase, backed by scheduling.db) is the one
+# persistent store for appointments in this application. Both the staff
+# calendar (web/calendar_routes.py, via CalendarService) and the agent/
+# Patient Portal booking flow (via `calendar` below) read and write the
+# SAME SchedulingDatabase instance - there is no separate in-memory
+# calendar in production, and nothing here copies or syncs data between
+# two stores. A booking made through either surface is immediately visible
+# through the other, because they are the same rows in the same database.
+#
+# `calendar` (the CalendarIntegration the agent/AppointmentScheduler use)
+# is SchedulingDatabaseCalendarAdapter, not MockCalendarIntegration, for
+# exactly this reason. MockCalendarIntegration remains available and is
+# still used by tests that explicitly want an isolated in-memory fake
+# (see core/data_access.py) - it is simply not what this running
+# application wires up.
+_app_dir = Path(__file__).parent.parent
+auth_db = AuthDatabase(str(_app_dir / 'auth.db'))
+scheduling_db = SchedulingDatabase(str(_app_dir / 'scheduling.db'))
+calendar = SchedulingDatabaseCalendarAdapter(scheduling_db, requested_by="patient_portal")
+
+# Initialize urgency configuration
+config_store = ConfigurationStore()
+urgency_config, had_error = config_store.load()
+if had_error:
+    print("[WARNING] Failed to load urgency config, using defaults")
+agent = FollowUpAgentOrchestrator.with_llm_decisions(data_store, calendar, policy, urgency_config=urgency_config)
 
 # Initialize LLM parser
 llm_parser = LLMPatientParser(use_llm=False)  # Set to True with API key for real LLM
@@ -49,17 +90,136 @@ llm_parser = LLMPatientParser(use_llm=False)  # Set to True with API key for rea
 # Patient self-service portal: a demo access-token store (see
 # web/patient_portal_auth.py for why this is demo-only) and a chat
 # assistant that is secondary to the slot picker. Both share the SAME
-# `agent`/`data_store`/`calendar` instances above - there is deliberately
-# no second calendar or data store for the portal, so a booking made here
-# is immediately visible through the existing staff dashboard endpoints.
+# `agent`/`data_store`/`calendar` instances above - a booking made here is
+# immediately visible through the existing staff dashboard AND the staff
+# calendar, since `calendar` now delegates to the same scheduling_db the
+# staff calendar routes use (see the note above).
 patient_portal_tokens = PatientAccessTokenStore()
 patient_chat_assistant = PatientChatAssistant.from_environment()
+
+# Initialize staff calendar routes against the SAME scheduling_db/auth_db
+# created above - not a second instance.
+init_calendar_routes(auth_db, scheduling_db)
+init_staff_routes(auth_db)
+app.register_blueprint(calendar_bp)
+app.register_blueprint(staff_bp)
+
+# Critical: Make auth_db available to decorators
+app.config['AUTH_DB'] = auth_db
 
 
 @app.route('/')
 def index():
     """Render the main dashboard page."""
     return render_template('dashboard.html')
+
+
+def is_safe_url(target):
+    """
+    Validate that a redirect URL is safe (local to this application).
+    Prevents open redirect vulnerabilities.
+    
+    Args:
+        target: URL to validate
+        
+    Returns:
+        True if URL is safe to redirect to, False otherwise
+    """
+    if not target:
+        return False
+    
+    # Must start with / and not //
+    if not target.startswith('/'):
+        return False
+    
+    if target.startswith('//'):
+        return False
+    
+    # Only allow paths, not full URLs
+    if '://' in target:
+        return False
+    
+    # Permitted paths
+    allowed_paths = ['/', '/staff/calendar', '/staff/login']
+    
+    # Check if target matches allowed paths or starts with them
+    return any(target == path or target.startswith(path + '?') for path in allowed_paths)
+
+
+@app.route('/staff/login')
+def staff_login_page():
+    """
+    Render the staff login page.
+    
+    If already authenticated, redirect to return URL or calendar.
+    Otherwise, show login form with return URL preserved.
+    """
+    # Check if already logged in
+    session_id = request.cookies.get('session_id')
+    if session_id:
+        user_info = auth_db.validate_session(session_id)
+        if user_info:
+            # Already authenticated, redirect to return URL
+            return_url = request.args.get('next', '/staff/calendar')
+            if is_safe_url(return_url):
+                from flask import redirect
+                return redirect(return_url)
+    
+    # Not authenticated, show login page
+    return render_template('staff_login.html')
+
+
+@app.route('/staff/calendar')
+def staff_calendar():
+    """
+    Render the staff calendar management page.
+    
+    Requires authentication. If not logged in, redirect to login page
+    with return URL.
+    """
+    # Check authentication
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/calendar')
+    
+    user_info = auth_db.validate_session(session_id)
+    if not user_info:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/calendar')
+    
+    # Check role (staff or admin)
+    if user_info['role'] not in ('staff', 'admin'):
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/calendar')
+    
+    return render_template('staff_calendar.html')
+
+
+@app.route('/staff/accounts')
+def staff_accounts():
+    """
+    Render the staff accounts management page (admin only).
+    
+    Requires authentication and admin role.
+    """
+    # Check authentication
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/accounts')
+    
+    user_info = auth_db.validate_session(session_id)
+    if not user_info:
+        from flask import redirect, url_for
+        return redirect(url_for('staff_login_page') + '?next=/staff/accounts')
+    
+    # Check admin role
+    if user_info['role'] != 'admin':
+        from flask import redirect
+        return redirect('/staff/calendar')  # Redirect non-admins to calendar
+    
+    return render_template('staff_accounts.html')
 
 
 @app.route('/api/status')
@@ -700,6 +860,66 @@ def _validate_selected_slot(case, selected_date_str, today):
     return selected_date, None
 
 
+def _validate_selected_slot_option(case, data, today):
+    """
+    Backend-side, independent re-validation of a SPECIFIC (date, session,
+    time) slot the browser claims the patient selected - the richer
+    sibling of `_validate_selected_slot` for calendars that support full
+    slot detail. Never trusts the browser's values directly.
+
+    Checks, in order:
+      1. date/session/time all parse and are present.
+      2. The date is not in the past and is within the booking window
+         (same rules as `_validate_selected_slot`).
+      3. That EXACT (date, session, time) combination is still present in
+         a fresh, right-now re-fetch of availability - a tampered session/
+         time, or one that has since been booked/blocked, is rejected here.
+
+    Args:
+        case: The patient's case.
+        data: The parsed JSON request body.
+        today: Server-side reference date.
+
+    Returns:
+        (SlotOption, None) on success, or (None, error_message) on failure.
+    """
+    date_str = data.get('appointment_date')
+    session = data.get('session')
+    time_str = data.get('time')
+
+    try:
+        selected_date = date.fromisoformat(str(date_str))
+    except (TypeError, ValueError):
+        return None, "Invalid or missing appointment date."
+
+    if not session or not isinstance(session, str):
+        return None, "Invalid or missing session."
+    if not time_str or not isinstance(time_str, str):
+        return None, "Invalid or missing time."
+
+    if selected_date <= today:
+        return None, "That date is in the past and can no longer be booked."
+
+    booking_deadline = today + timedelta(days=policy.booking_window_days)
+    if selected_date > booking_deadline:
+        return None, (
+            f"That date is outside the {policy.booking_window_days}-day "
+            f"booking window."
+        )
+
+    detailed = _get_detailed_available_slots(case, today, booking_deadline)
+    if detailed is None:
+        return None, "Specific time selection is not supported by this calendar."
+
+    for slot in detailed:
+        if (slot.slot_date == selected_date
+                and slot.session == session
+                and slot.time == time_str):
+            return slot, None
+
+    return None, "That time is no longer available. Please pick another."
+
+
 @app.route('/patient/<access_token>')
 def patient_portal(access_token):
     """
@@ -742,12 +962,68 @@ def patient_portal_status(access_token):
     })
 
 
+def _get_detailed_available_slots(case, today, booking_deadline):
+    """
+    Full (date, session, time) availability for `case`'s booking window,
+    when the configured calendar supports it (the production
+    SchedulingDatabaseCalendarAdapter). Returns an empty list for
+    calendars that only implement the plain CalendarIntegration.book_appointment
+    boolean interface (e.g. MockCalendarIntegration, used in tests) - callers
+    fall back to the date-only path in that case, exactly as before.
+    """
+    detailed_finder = getattr(agent.calendar, "find_available_slot_options", None)
+    if detailed_finder is None:
+        return None
+    return detailed_finder(after=today, to_date=booking_deadline)
+
+
+def _group_slots_by_date(slot_options):
+    """
+    Group a chronologically-sorted SlotOption list into
+    [{'date': 'YYYY-MM-DD', 'times': [{'session', 'time', 'label'}, ...]}, ...],
+    preserving date order and, within a date, time order.
+    """
+    by_date: dict = {}
+    order: list = []
+    for slot in slot_options:
+        key = slot.slot_date.isoformat()
+        if key not in by_date:
+            by_date[key] = []
+            order.append(key)
+        by_date[key].append({
+            'session': slot.session,
+            'time': slot.time,
+            'label': _format_time_label(slot.time),
+        })
+    return [{'date': key, 'times': by_date[key]} for key in order]
+
+
+def _format_time_label(time_str):
+    """'14:00' -> '2:00 PM'; falls back to the raw string if unparseable."""
+    try:
+        return datetime.strptime(time_str, '%H:%M').strftime('%-I:%M %p')
+    except ValueError:
+        return time_str
+
+
 @app.route('/api/patient-portal/<access_token>/available-slots')
 def patient_portal_available_slots(access_token):
     """
     Available slots for THIS patient's treatment type, within the
     clinic's configured booking window - reuses the exact same
     AppointmentScheduler/CalendarIntegration the staff dashboard uses.
+
+    When the configured calendar supports full slot detail (the
+    production adapter), returns each bookable DATE grouped with its
+    specific SESSION/TIME options, so the portal can render "Monday Sep 28
+    [9:00 AM] [2:00 PM]" instead of only a date. Slots are additionally
+    split into `preferred_dates`/`other_dates` when this patient has a
+    recent missed-appointment proxy on file (see
+    core.slot_ranking) - `other_dates` is never empty just because there is
+    a preference match; every available slot remains shown and selectable.
+
+    Falls back to date-only `slots` (unchanged, pre-existing shape) for any
+    calendar that does not implement the detailed interface.
     """
     patient_id, case = _resolve_portal_case(access_token)
     if case is None:
@@ -755,14 +1031,32 @@ def patient_portal_available_slots(access_token):
 
     today = agent.clock.today()
     booking_deadline = today + timedelta(days=policy.booking_window_days)
-    slots = agent.scheduler.find_available_slots(
-        case, after=today, limit=50, to_date=booking_deadline
-    )
+
+    detailed = _get_detailed_available_slots(case, today, booking_deadline)
+
+    if detailed is None:
+        # Fallback: date-only calendar (e.g. MockCalendarIntegration in tests).
+        slots = agent.scheduler.find_available_slots(
+            case, after=today, limit=50, to_date=booking_deadline
+        )
+        return jsonify({
+            'success': True,
+            'booking_window_days': policy.booking_window_days,
+            'slots': [slot.isoformat() for slot in slots],
+        })
+
+    hint_getter = getattr(agent.calendar, "get_last_missed_slot_hint", None)
+    missed_hint = hint_getter(patient_id) if hint_getter else None
+    ranked = rank_slots_by_missed_appointment(detailed, missed_hint)
 
     return jsonify({
         'success': True,
         'booking_window_days': policy.booking_window_days,
-        'slots': [slot.isoformat() for slot in slots],
+        'slots': sorted({s.slot_date.isoformat() for s in detailed}),
+        'dates': _group_slots_by_date(sorted(detailed, key=lambda s: s.datetime_utc)),
+        'preferred_dates': _group_slots_by_date(ranked.preferred),
+        'other_dates': _group_slots_by_date(ranked.other),
+        'used_no_show_preference': ranked.used_hint,
     })
 
 
@@ -775,9 +1069,17 @@ def patient_portal_select_slot(access_token):
         token validation -> slot re-validation -> PolicyGuard -> existing
         booking/calendar service -> booking result
 
-    The browser's `appointment_date` value is independently re-validated
-    (exists, available, not in the past, within the booking window) before
-    any booking is attempted - see _validate_selected_slot.
+    Accepts EITHER:
+      - {appointment_date, session, time}: books that EXACT slot (used when
+        the calendar supports full slot detail - the production adapter).
+        The browser's session/time values are independently re-validated
+        against a fresh availability re-fetch before any booking is
+        attempted - see _validate_selected_slot_option. A tampered or
+        stale session/time that is not currently available is rejected.
+      - {appointment_date} only: legacy date-only booking (picks the
+        earliest available slot on that date) - kept for calendars that
+        only implement the date-only CalendarIntegration interface (e.g.
+        MockCalendarIntegration, used in tests), and as a fallback.
     """
     patient_id, case = _resolve_portal_case(access_token)
     if case is None:
@@ -785,28 +1087,65 @@ def patient_portal_select_slot(access_token):
 
     data = request.get_json(silent=True) or {}
     today = agent.clock.today()
-    selected_date, error = _validate_selected_slot(case, data.get('appointment_date'), today)
-    if error:
-        return _portal_error(error)
 
-    try:
-        decision = agent.handle_portal_slot_selection(patient_id, selected_date, today=today)
-    except ValueError as exc:
-        return _portal_error(str(exc), 404)
+    wants_specific_slot = 'session' in data or 'time' in data
+
+    if wants_specific_slot:
+        slot_option, error = _validate_selected_slot_option(case, data, today)
+        if error:
+            return _portal_error(error)
+
+        try:
+            decision = agent.handle_portal_slot_option_selection(
+                patient_id, slot_option, today=today
+            )
+        except ValueError as exc:
+            return _portal_error(str(exc), 404)
+
+        selected_date = slot_option.slot_date
+        booked_time_label = _format_time_label(slot_option.time)
+    else:
+        selected_date, error = _validate_selected_slot(case, data.get('appointment_date'), today)
+        if error:
+            return _portal_error(error)
+
+        try:
+            decision = agent.handle_portal_slot_selection(patient_id, selected_date, today=today)
+        except ValueError as exc:
+            return _portal_error(str(exc), 404)
+
+        booked_time_label = None
 
     refreshed = agent.get_case_by_patient_id(patient_id)
     booked = refreshed is not None and refreshed.status == CaseStatus.BOOKED
 
-    return jsonify({
+    success_message = "Your appointment is booked."
+    if booked and booked_time_label:
+        success_message = f"Your appointment is booked for {booked_time_label}."
+
+    response = {
         'success': booked,
         'status': refreshed.status.value if refreshed else None,
         'booked_date': selected_date.isoformat() if booked else None,
         'decision_source': decision.source,
         'message': (
-            "Your appointment is booked." if booked
+            success_message if booked
             else "That time could not be booked. Please choose another, or contact the clinic."
         ),
-    })
+    }
+
+    if not booked:
+        # Structured failure: the slot may have become unavailable between
+        # page load and this click (another booking, capacity exhausted,
+        # etc.) - hand back freshly re-queried availability so the portal
+        # can update its slot list without a full page reload.
+        booking_deadline = today + timedelta(days=policy.booking_window_days)
+        current_slots = agent.scheduler.find_available_slots(
+            refreshed, after=today, limit=50, to_date=booking_deadline
+        ) if refreshed else []
+        response['available_slots'] = [s.isoformat() for s in current_slots]
+
+    return jsonify(response)
 
 
 @app.route('/api/patient-portal/<access_token>/no-suitable-slot', methods=['POST'])
@@ -910,6 +1249,198 @@ def patient_portal_chat(access_token):
         'is_emergency': reply.is_emergency,
         'decision_source': decision_source,
     })
+
+
+# ============================================================================
+# Clinic Urgency Configuration (staff-facing; independent of the patient
+# portal above)
+# ============================================================================
+
+
+@app.route('/api/urgency-config', methods=['GET'])
+def get_urgency_config():
+    """
+    Get current urgency configuration.
+    
+    Returns:
+        JSON with current configuration including general thresholds,
+        treatment-specific overrides, missed appointment rules,
+        unanswered reminder rules, and escalation settings.
+        
+    Response format:
+        {
+            "success": true,
+            "config": {
+                "general_thresholds": {"medium": 14, "high": 30, "critical": 60},
+                "treatment_overrides": {},
+                "reminder_interval_days": 7,
+                "missed_appointment_rules": {...},
+                "unanswered_reminder_urgency_rules": {...},
+                "escalation_rules": {...}
+            }
+        }
+    """
+    try:
+        config, had_error = config_store.load()
+        return jsonify({
+            'success': True,
+            'config': config.to_dict()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/urgency-config', methods=['POST'])
+def save_urgency_config():
+    """
+    Save new urgency configuration.
+    
+    Validates the configuration, saves it to persistent storage,
+    records the change in the changelog, and re-scores all active
+    cases with the new rules.
+    
+    Request body:
+        Configuration object matching UrgencyRulesConfig schema.
+        
+    Returns:
+        {"success": true} on success, or validation errors on failure.
+        
+    Side effects:
+        - Persists configuration to config/urgency_rules.json
+        - Adds changelog entry to config/urgency_rules_changelog.json
+        - Re-scores all active cases with new urgency rules
+    """
+    try:
+        config_data = request.get_json()
+        
+        # Parse and validate
+        new_config = UrgencyRulesConfig.from_dict(config_data)
+        is_valid, errors = new_config.validate()
+        
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'validation_errors': errors
+            }), 400
+        
+        # Load old config for changelog
+        old_config, _ = config_store.load()
+        
+        # Save new config
+        success, error_msg = config_store.save(new_config, old_config)
+        
+        if success:
+            # Update global urgency_config
+            global urgency_config
+            urgency_config = new_config
+            
+            # Re-score all active cases with new configuration
+            agent.rescore_all_cases(urgency_config)
+            
+            return jsonify({'success': True})
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/urgency-config/preview', methods=['POST'])
+def preview_urgency_config():
+    """
+    Preview impact of proposed urgency configuration.
+    
+    Simulates applying the proposed configuration to all active patients
+    without making any changes. Preserves episode history to ensure
+    accurate consecutive_unanswered counts in the preview.
+    
+    Request body:
+        Proposed configuration object.
+        
+    Returns:
+        JSON with:
+        - List of all patients showing old vs new urgency levels
+        - Summary statistics (increased, decreased, unchanged)
+        - Explanations for each urgency change
+        
+    Guarantees:
+        - No external calls (messages, emails, etc.)
+        - No state modifications
+        - Episode tracking matches production scoring
+    """
+    try:
+        proposed_config_data = request.get_json()
+        
+        # Parse and validate proposed config
+        proposed_config = UrgencyRulesConfig.from_dict(proposed_config_data)
+        is_valid, errors = proposed_config.validate()
+        
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'validation_errors': errors
+            }), 400
+        
+        # Load current config
+        current_config, _ = config_store.load()
+        
+        # Get active cases for episode tracking
+        active_cases = {
+            case.patient.patient_id: case
+            for case in agent.get_active_cases()
+        }
+        
+        # Create preview engine
+        preview_engine = PreviewEngine(
+            data_store,
+            current_config,
+            policy=policy,
+            active_cases=active_cases
+        )
+        
+        # Generate preview
+        preview = preview_engine.preview_config_change(proposed_config, date.today())
+        
+        # Format changes for frontend
+        changes_formatted = []
+        for change in preview.changes:
+            changes_formatted.append({
+                'patient_name': change.patient_name,
+                'patient_id': change.patient_id,
+                'days_overdue': change.days_overdue,
+                'old_urgency': change.old_urgency.value,
+                'new_urgency': change.new_urgency.value,
+                'old_explanation': change.old_explanation,
+                'new_explanation': change.new_explanation,
+                'changed': change.urgency_changed,
+                'increased': change.urgency_increased,
+                'decreased': change.urgency_decreased
+            })
+        
+        return jsonify({
+            'success': True,
+            'preview': {
+                'changes': changes_formatted,
+                'summary': preview.summary
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 if __name__ == '__main__':

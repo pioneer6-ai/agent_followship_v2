@@ -874,7 +874,7 @@ class TestStateSurvivesAcrossCycles:
         backend = ScriptedBackend()
         agent, _ = self.make_populated(backend)
         # Urgency is scored by the rule engine, so pin it to critical here.
-        agent.urgency_scorer.score = lambda case: UrgencyLevel.CRITICAL
+        agent.urgency_scorer.score = lambda patient, days_overdue, consecutive_unanswered=0: (UrgencyLevel.CRITICAL, "Critical urgency for testing")
         today = date.today()
 
         agent.run_daily_cycle(today)
@@ -923,7 +923,7 @@ class TestEscalationAlertsStaff:
             notifier=agent._alert_staff,
         )
         agent.escalation_email = "staff@clinic.example"
-        agent.urgency_scorer.score = lambda case: UrgencyLevel.CRITICAL
+        agent.urgency_scorer.score = lambda patient, days_overdue, consecutive_unanswered=0: (UrgencyLevel.CRITICAL, "Critical urgency for testing")
         today = date.today()
 
         agent.run_daily_cycle(today)
@@ -955,7 +955,7 @@ class TestEscalationAlertsStaff:
     def test_no_alert_is_sent_when_no_address_is_configured(self):
         backend = ScriptedBackend()
         agent, _ = TestStateSurvivesAcrossCycles.make_populated(backend)
-        agent.urgency_scorer.score = lambda case: UrgencyLevel.CRITICAL
+        agent.urgency_scorer.score = lambda patient, days_overdue, consecutive_unanswered=0: (UrgencyLevel.CRITICAL, "Critical urgency for testing")
         today = date.today()
 
         agent.run_daily_cycle(today)
@@ -1029,3 +1029,65 @@ class TestDecisionSourceIsAudited:
         context = decisions[0]["additional_context"]
         assert context["decision_source"] == "rules"
         assert isinstance(context["alternatives_considered"], list)
+
+
+def test_with_llm_decisions_forwards_custom_urgency_config():
+    """
+    Regression: with_llm_decisions must forward the supplied urgency_config
+    to the constructor so non-default thresholds reach the scorer.
+    
+    Before the fix, the explicit urgency_config parameter was discarded and
+    kwargs.pop("urgency_config", None) was used instead, meaning the supplied
+    config never reached the scorer.
+    """
+    from core.urgency_config import UrgencyRulesConfig
+    from core.data_access import MockPatientDataStore, MockCalendarIntegration
+    from core.models import PatientRecord, ContactChannel
+    from datetime import date
+    
+    # Create custom config with non-default thresholds
+    custom_config = UrgencyRulesConfig(
+        general_thresholds={'medium': 5, 'high': 10, 'critical': 20},
+        treatment_overrides={},
+        reminder_interval_days=7,
+        missed_appointment_rules={'enabled': False},
+        unanswered_reminder_urgency_rules={'enabled': False},
+        escalation_rules={'enabled': True, 'consecutive_unanswered_threshold': 3},
+        use_custom_rules=True  # Enable custom scoring to test config forwarding
+    )
+    
+    # Build agent with custom config
+    data_store = MockPatientDataStore()
+    calendar = MockCalendarIntegration()
+    
+    agent = FollowUpAgentOrchestrator.with_llm_decisions(
+        data_store,
+        calendar,
+        urgency_config=custom_config
+    )
+    
+    # Verify the custom config reached the scorer
+    assert agent.urgency_config is custom_config
+    assert agent.urgency_scorer.config is custom_config
+    assert agent.urgency_scorer.config.general_thresholds['medium'] == 5
+    assert agent.urgency_scorer.config.general_thresholds['high'] == 10
+    assert agent.urgency_scorer.config.general_thresholds['critical'] == 20
+    
+    # Verify scoring uses the custom thresholds
+    patient = PatientRecord(
+        patient_id="TEST",
+        name="Test Patient",
+        contact_info={ContactChannel.SMS: "+15551234567"},
+        preferred_channel=ContactChannel.SMS,
+        last_visit_date=date(2024, 1, 1),
+        treatment_type="cleaning",
+        recall_interval_days=180
+    )
+    
+    # 6 days overdue should be MEDIUM with custom thresholds (>5)
+    # but would be LOW with defaults (14/30/60)
+    result = agent.urgency_scorer.score(patient, 6, consecutive_unanswered=0)
+    assert result is not None
+    urgency, explanation = result
+    assert urgency == UrgencyLevel.MEDIUM, f"Expected MEDIUM for 6 days with threshold 5, got {urgency}"
+    assert "6 days overdue" in explanation

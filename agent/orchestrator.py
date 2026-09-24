@@ -16,7 +16,9 @@ from typing import Dict, List, Optional
 from core.clock import Clock, SystemClock
 from core.models import FollowUpCase, CaseStatus, ContactChannel
 from core.config import ClinicPolicyConfig
+from core.urgency_config import UrgencyRulesConfig
 from core.data_access import PatientDataStore, CalendarIntegration
+from core.scheduling_calendar_adapter import SlotOption
 from core.actions import AgentAction
 from core.trigger_service import TriggerService
 from agent.business_rules import RecallRuleEngine, UrgencyScorer
@@ -74,6 +76,7 @@ class FollowUpAgentOrchestrator:
         data_store: PatientDataStore,
         calendar: CalendarIntegration,
         policy: Optional[ClinicPolicyConfig] = None,
+        urgency_config: Optional[UrgencyRulesConfig] = None,
         notification_channels: Optional[Dict[ContactChannel, NotificationChannel]] = None,
         delivery_backend: Optional[DeliveryBackend] = None,
         decision_engine: Optional["DecisionEngine"] = None,
@@ -117,7 +120,8 @@ class FollowUpAgentOrchestrator:
 
         # Initialize core business logic components
         self.rule_engine = RecallRuleEngine(self.policy)
-        self.urgency_scorer = UrgencyScorer(self.policy)
+        self.urgency_config = urgency_config or UrgencyRulesConfig.get_default()
+        self.urgency_scorer = UrgencyScorer(self.urgency_config, self.policy)
 
         # Initialize communication components
         self.message_composer = MessageComposerAgent()
@@ -151,6 +155,7 @@ class FollowUpAgentOrchestrator:
         data_store: PatientDataStore,
         calendar: CalendarIntegration,
         policy: Optional[ClinicPolicyConfig] = None,
+        urgency_config: Optional[UrgencyRulesConfig] = None,
         *,
         model: Optional[str] = None,
         **kwargs: object,
@@ -179,11 +184,54 @@ class FollowUpAgentOrchestrator:
             A configured orchestrator.
         """
         resolved_policy = policy or ClinicPolicyConfig.from_env()
+        # Use the explicit urgency_config parameter (don't discard it)
+        urgency_config_arg = urgency_config
         kwargs.setdefault(
             "decision_engine",
             LlmDecisionEngine.from_environment(resolved_policy, model=model),
         )
-        return cls(data_store, calendar, resolved_policy, **kwargs)  # type: ignore[arg-type]
+        return cls(data_store, calendar, resolved_policy, urgency_config=urgency_config_arg, **kwargs)  # type: ignore[arg-type]
+
+    
+    def rescore_all_cases(self, new_urgency_config: UrgencyRulesConfig) -> None:
+        """
+        Re-score all active cases with new urgency configuration.
+        
+        This method is called when urgency configuration is updated through the
+        dashboard. It applies the new scoring rules to all active cases without
+        sending any messages.
+        
+        Args:
+            new_urgency_config: New urgency configuration to apply
+        """
+        self.urgency_config = new_urgency_config
+        self.urgency_scorer = UrgencyScorer(new_urgency_config, self.policy)
+        
+        from core.models import calculate_days_overdue
+        today = date.today()
+        
+        rescored_count = 0
+        for case in self.active_cases.values():
+            days_overdue = calculate_days_overdue(case.patient, today)
+            
+            # Use consecutive_unanswered from existing case
+            consecutive_unanswered = getattr(case, 'consecutive_unanswered_reminders', 0)
+            
+            # Re-score with new configuration
+            result = self.urgency_scorer.score(
+                case.patient,
+                days_overdue,
+                consecutive_unanswered=consecutive_unanswered
+            )
+            
+            if result:
+                new_urgency, new_explanation = result
+                case.urgency = new_urgency
+                case.urgency_explanation = new_explanation
+                rescored_count += 1
+        
+        print(f"[INFO] Re-scored {rescored_count} active cases with new urgency configuration")
+
 
     def run_daily_cycle(self, today: Optional[date] = None) -> list[FollowUpCase]:
         """
@@ -230,10 +278,37 @@ class FollowUpAgentOrchestrator:
         print("🧠 PHASE 2: DECIDE - Evaluating urgency and prioritizing...")
 
         # Score urgency for each case
+        # Restore episode history BEFORE scoring so unanswered-reminder rules use real state
         for case in overdue_cases:
-            case.urgency = self.urgency_scorer.score(case)
+            # Match existing episode by patient_id and episode_id
+            expected_episode_id = f"{case.patient.patient_id}_{case.patient.last_visit_date.isoformat()}"
+            previous = self.active_cases.get(case.patient.patient_id)
+            
+            consecutive_unanswered = 0
+            if previous and previous.episode_id == expected_episode_id:
+                # Same episode - preserve consecutive_unanswered count
+                consecutive_unanswered = previous.consecutive_unanswered_reminders
+            # else: different episode or no previous case - start fresh with 0
+            
+            # Score with restored state
+            from core.models import calculate_days_overdue
+            days_overdue = calculate_days_overdue(case.patient, today)
+            
+            result = self.urgency_scorer.score(
+                case.patient,
+                days_overdue,
+                consecutive_unanswered=consecutive_unanswered
+            )
+            
+            if result:
+                case.urgency, case.urgency_explanation = result
+            else:
+                case.urgency = UrgencyLevel.LOW
+                case.urgency_explanation = "Below minimum threshold"
+            
+            case.consecutive_unanswered_reminders = consecutive_unanswered
             print(f"   {case.patient.name}: {case.urgency.value.upper()} "
-                  f"({case.days_overdue} days overdue)")
+                  f"({case.days_overdue} days overdue) - {case.urgency_explanation}")
 
         # Sort by urgency (most urgent first)
         prioritized_cases = self.urgency_scorer.sort_by_urgency(overdue_cases)
@@ -334,6 +409,10 @@ class FollowUpAgentOrchestrator:
             current.last_contacted = previous.last_contacted
         if previous.conversation_log:
             current.conversation_log = list(previous.conversation_log)
+        # Preserve episode tracking fields if same episode
+        if hasattr(previous, "episode_id") and previous.episode_id == current.episode_id:
+            current.consecutive_unanswered_reminders = previous.consecutive_unanswered_reminders
+        # else: different episode - keep the fresh consecutive_unanswered_reminders (should be 0)
 
         # Preserve-unless-recomputed: a case rebuilt from the data store has
         # no way to know about a previously scheduled next_followup_at (it
@@ -1119,29 +1198,199 @@ class FollowUpAgentOrchestrator:
             return decision
 
         # Re-validate against the calendar independently of the browser's
-        # claim: the slot must still actually be available. try_book with
-        # an explicit preferred_date performs exactly this check via
-        # CalendarIntegration.book_appointment before recording anything.
-        success, booked_date = self.scheduler.try_book(case, preferred_date=selected_date)
+        # claim: the slot must still actually be available. The scheduling
+        # subsystem (via SchedulingDatabaseCalendarAdapter, when that is the
+        # configured calendar) is the SOURCE OF TRUTH for whether a booking
+        # actually exists - case.status is only ever set to BOOKED after
+        # observing a successful, confirmed result from the calendar layer
+        # itself, never assumed from this call merely being reached.
+        #
+        # When the configured calendar supports the richer
+        # book_appointment_detailed() contract (the production adapter), use
+        # it so the case reflects the database's own recorded appointment id
+        # and status. Calendars that only implement the plain
+        # CalendarIntegration.book_appointment() boolean (e.g.
+        # MockCalendarIntegration, used in tests) fall back to try_book,
+        # exactly as before.
+        detailed_booker = getattr(self.calendar, "book_appointment_detailed", None)
+        if detailed_booker is not None:
+            outcome = detailed_booker(
+                case.patient.patient_id,
+                selected_date,
+                case.patient.treatment_type,
+                patient_name=case.patient.name,
+                follow_up_case_id=case.patient.patient_id,
+                follow_up_reason=f"Patient portal booking for {case.patient.name}",
+            )
+            success = outcome.success
+            booked_date = selected_date if success else None
+            appointment_id = outcome.appointment_id
+            appointment_status = outcome.status
+            failure_reason = outcome.error
+        else:
+            # Mock-calendar fallback path (e.g. tests). try_book also sets
+            # case.status itself on success; the assignment below is
+            # redundant but harmless, and keeps this method's own status
+            # transition the single thing this docstring needs to describe.
+            success, booked_date = self.scheduler.try_book(case, preferred_date=selected_date)
+            appointment_id = None
+            appointment_status = "confirmed" if success else None
+            failure_reason = None if success else "Slot unavailable at booking time."
 
         self.audit_logger.log_appointment_action(
-            case, "patient_portal_booking", booked_date if success else selected_date, success
+            case, "patient_portal_booking", booked_date if success else selected_date, success,
+            details=(f"appointment_id={appointment_id}" if appointment_id is not None else None),
         )
 
         if success:
+            # Case state reflects the observed successful booking; it is
+            # never the source of truth for whether the appointment exists.
             case.status = CaseStatus.BOOKED
             case.next_followup_at = None
             case.add_to_log(
                 f"Patient portal: booked appointment for {booked_date.isoformat()}"
+                + (f" (appointment #{appointment_id}, {appointment_status})"
+                   if appointment_id is not None else "")
             )
             print(f"   ✅ Patient portal booked {case.patient.name} for {booked_date}")
         else:
             case.add_to_log(
                 f"Patient portal: slot {selected_date.isoformat()} was no longer "
                 f"available at booking time"
+                + (f" ({failure_reason})" if failure_reason else "")
             )
             print(f"   ⚠️  Patient portal booking failed for {case.patient.name}: "
                   f"{selected_date} unavailable")
+
+        return decision
+
+    def handle_portal_slot_option_selection(
+        self,
+        patient_id: str,
+        slot_option: SlotOption,
+        today: Optional[date] = None,
+    ) -> "ActionDecision":
+        """
+        Book the EXACT (date, session, time) slot chosen through the
+        patient portal's slot picker, when the configured calendar
+        supports that level of detail (the production
+        SchedulingDatabaseCalendarAdapter).
+
+        This mirrors `handle_portal_slot_selection`'s reasoning loop
+        (propose CONFIRM_BOOKING with affirmative consent -> PolicyGuard
+        authorizes -> only then does the booking service run) exactly,
+        differing only in which calendar method performs the actual
+        booking: `book_specific_slot` (books precisely the requested
+        session/time) instead of `book_appointment_detailed` (which
+        auto-picks the earliest slot on a date). See that method's
+        docstring for the full authorization/audit rationale, which
+        applies unchanged here.
+
+        The caller (the portal route) is responsible for independently
+        re-validating the slot's date/session/time against a fresh
+        availability re-fetch BEFORE calling this method; this method
+        does not re-derive "is in the past" or "within the booking
+        window" for the same reason described on
+        `handle_portal_slot_selection`.
+
+        Args:
+            patient_id: Patient whose case this applies to.
+            slot_option: The exact SlotOption (date, session, time) the
+                patient selected, already independently re-validated by
+                the caller against the calendar's current availability.
+            today: Reference date (defaults to the orchestrator's clock).
+
+        Returns:
+            The ActionDecision that was actually authorized/executed.
+        """
+        if today is None:
+            today = self.clock.today()
+
+        case = self.active_cases.get(patient_id)
+        if case is None:
+            raise ValueError(f"unknown patient_id: {patient_id!r}")
+
+        selected_date = slot_option.slot_date
+
+        proposed = ActionDecision(
+            action=AgentAction.CONFIRM_BOOKING,
+            rationale="Patient portal: explicit slot selection (specific time)",
+            source="patient_portal",
+        )
+        decision = self._authorize_decision(
+            case,
+            proposed,
+            consent_signal="affirmative",
+        )
+
+        if decision.action != AgentAction.CONFIRM_BOOKING:
+            if decision.action == AgentAction.ESCALATE_TO_STAFF:
+                case.status = CaseStatus.ESCALATED
+                self.escalation_handler.escalate(
+                    case,
+                    reason="Patient portal booking attempt was overridden by PolicyGuard",
+                    priority="normal",
+                )
+            case.add_to_log(
+                f"Patient portal: booking attempt for {selected_date.isoformat()} "
+                f"{slot_option.session} {slot_option.time} was not authorized "
+                f"({decision.rationale})"
+            )
+            return decision
+
+        specific_booker = getattr(self.calendar, "book_specific_slot", None)
+        if specific_booker is None:
+            # Calendar does not support specific-slot booking at all (e.g.
+            # MockCalendarIntegration in tests) - the portal route should
+            # not have reached this method in that case, but fail safely
+            # rather than booking something the patient did not select.
+            case.add_to_log(
+                "Patient portal: specific-slot booking attempted but the "
+                "configured calendar does not support it"
+            )
+            return decision
+
+        outcome = specific_booker(
+            case.patient.patient_id,
+            selected_date,
+            slot_option.session,
+            slot_option.time,
+            case.patient.treatment_type,
+            patient_name=case.patient.name,
+            follow_up_case_id=case.patient.patient_id,
+            follow_up_reason=f"Patient portal booking for {case.patient.name}",
+        )
+        success = outcome.success
+        booked_date = selected_date if success else None
+        appointment_id = outcome.appointment_id
+        appointment_status = outcome.status
+        failure_reason = outcome.error
+
+        self.audit_logger.log_appointment_action(
+            case, "patient_portal_booking", booked_date if success else selected_date, success,
+            details=(f"appointment_id={appointment_id}" if appointment_id is not None else None),
+        )
+
+        if success:
+            case.status = CaseStatus.BOOKED
+            case.next_followup_at = None
+            case.add_to_log(
+                f"Patient portal: booked appointment for {booked_date.isoformat()} "
+                f"{slot_option.session} {slot_option.time}"
+                + (f" (appointment #{appointment_id}, {appointment_status})"
+                   if appointment_id is not None else "")
+            )
+            print(f"   ✅ Patient portal booked {case.patient.name} for "
+                  f"{booked_date} {slot_option.time}")
+        else:
+            case.add_to_log(
+                f"Patient portal: slot {selected_date.isoformat()} "
+                f"{slot_option.session} {slot_option.time} was no longer "
+                f"available at booking time"
+                + (f" ({failure_reason})" if failure_reason else "")
+            )
+            print(f"   ⚠️  Patient portal booking failed for {case.patient.name}: "
+                  f"{selected_date} {slot_option.time} unavailable")
 
         return decision
 

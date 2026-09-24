@@ -538,6 +538,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="/static/config_modal.css">
 </head>
 <body>
     <div class="container">
@@ -548,6 +549,8 @@
                 <button class="btn btn-primary" onclick="runDailyCycle()">▶️ Run Daily Cycle</button>
                 <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh Data</button>
                 <button class="btn btn-upload" onclick="showUploadModal()">📤 Upload Patient List</button>
+                <button class="btn btn-primary" onclick="showConfigModal()">Configure Urgency Rules</button>
+                <button class="btn btn-primary" onclick="window.location.href='/staff/calendar'">📅 Follow-up Calendar</button>
             </div>
         </div>
         
@@ -1365,5 +1368,140 @@
             }
         };
     </script>
+    <script src="/static/config_modal.js"></script>
+
+    ﻿<!-- Urgency Configuration Modal -->
+<div id="configModal" class="modal">
+    <div class="modal-content modal-wide">
+        <span class="modal-close-top" onclick="closeConfigModal()">&times;</span>
+        
+        <div class="modal-header">
+            <h2 class="modal-title">⚙️ Configure Urgency Rules</h2>
+        </div>
+        
+        <div id="configAlerts"></div>
+        
+        <div class="config-section" style="border: 2px solid #2196F3; background: #E3F2FD;">
+            <h3>🔧 Scoring Mode</h3>
+            <p style="color: #1565C0; font-size: 13px; margin-bottom: 15px; font-weight: 500;">
+                Choose how urgency is calculated. Changing mode affects all active cases immediately.
+            </p>
+            <div class="config-row">
+                <input type="radio" id="mode_baseline" name="scoring_mode" value="baseline" checked>
+                <label for="mode_baseline" style="margin-left: 8px; font-weight: 500;">
+                    <strong>Baseline Scoring (Default)</strong> — Uses treatment type weights and no-show history multipliers from the original algorithm. Thresholds come from environment configuration.
+                </label>
+            </div>
+            <div class="config-row" style="margin-top: 10px;">
+                <input type="radio" id="mode_custom" name="scoring_mode" value="custom">
+                <label for="mode_custom" style="margin-left: 8px; font-weight: 500;">
+                    <strong>Custom Configured Rules</strong> — Uses the thresholds, treatment overrides, and additional rules configured below. No automatic weights or multipliers.
+                </label>
+            </div>
+        </div>
+        
+        <div class="config-section">
+            <h3>📊 General Thresholds (days overdue)</h3>
+            <div class="config-row">
+                <div class="config-label">Medium Urgency</div>
+                <input type="number" id="threshold_medium" class="config-input" min="1" value="14">
+            </div>
+            <div class="config-row">
+                <div class="config-label">High Urgency</div>
+                <input type="number" id="threshold_high" class="config-input" min="1" value="30">
+            </div>
+            <div class="config-row">
+                <div class="config-label">Critical Urgency</div>
+                <input type="number" id="threshold_critical" class="config-input" min="1" value="60">
+            </div>
+        </div>
+        
+        <div class="config-section">
+            <h3>🎯 Treatment-Specific Overrides</h3>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Override general thresholds for specific treatment types. Leave empty to use general thresholds.
+            </p>
+            <div id="treatmentOverrides"></div>
+            <button class="btn btn-small btn-secondary" onclick="addTreatmentOverride()" style="margin-top: 10px;">+ Add Override</button>
+        </div>
+        
+        <div class="config-section">
+            <h3>🚨 Escalation Rules</h3>
+            <div class="checkbox-row">
+                <input type="checkbox" id="escalation_enabled" checked>
+                <label for="escalation_enabled" class="config-label" style="margin: 0;">Enable automatic escalation</label>
+            </div>
+            <div class="config-row">
+                <div class="config-label">Escalate after consecutive unanswered reminders</div>
+                <input type="number" id="escalation_threshold" class="config-input config-input-small" min="1" value="3">
+            </div>
+        </div>
+        
+        <div class="config-section">
+            <h3>⏰ Reminder Interval</h3>
+            <div class="config-row">
+                <div class="config-label">Days between reminders</div>
+                <input type="number" id="reminder_interval" class="config-input config-input-small" min="1" value="7">
+            </div>
+        </div>
+        
+        
+        
+        <div class="config-section">
+            <h3>Missed Appointment Rules</h3>
+            <div class="checkbox-row">
+                <input type="checkbox" id="missed_appointment_enabled">
+                <label for="missed_appointment_enabled" class="config-label" style="margin: 0;">Enable missed appointment urgency boost</label>
+            </div>
+            <div class="config-row">
+                <div class="config-label">Missed appointment threshold</div>
+                <input type="number" id="missed_appointment_threshold" class="config-input config-input-small" min="1" value="3">
+            </div>
+            <div class="config-row">
+                <div class="config-label">Minimum urgency level</div>
+                <select id="missed_appointment_min_urgency" class="config-input">
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH" selected>High</option>
+                    <option value="CRITICAL">Critical</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="config-section">
+            <h3>Unanswered Reminder Rules</h3>
+            <div class="checkbox-row">
+                <input type="checkbox" id="unanswered_reminder_enabled">
+                <label for="unanswered_reminder_enabled" class="config-label" style="margin: 0;">Enable unanswered reminder urgency boost</label>
+            </div>
+            <div class="config-row">
+                <div class="config-label">Unanswered reminder threshold</div>
+                <input type="number" id="unanswered_reminder_threshold" class="config-input config-input-small" min="1" value="2">
+            </div>
+            <div class="config-row">
+                <div class="config-label">Minimum urgency level</div>
+                <select id="unanswered_reminder_min_urgency" class="config-input">
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH" selected>High</option>
+                    <option value="CRITICAL">Critical</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="previewSection" style="display: none;">
+            <h3 style="color: #333; margin-bottom: 15px;">📋 Preview Changes</h3>
+            <div id="previewContent" class="preview-panel"></div>
+        </div>
+        
+        <div class="config-actions">
+            <button class="btn btn-preview" onclick="previewConfig()">👁️ Preview Changes</button>
+            <button class="btn btn-primary" onclick="saveConfig()">💾 Save Configuration</button>
+            <button class="btn btn-restore" onclick="restoreDefaults()">🔄 Restore Defaults</button>
+            <button class="btn btn-cancel" onclick="closeConfigModal()">✖️ Cancel</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
