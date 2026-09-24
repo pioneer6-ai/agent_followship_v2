@@ -1075,6 +1075,13 @@ endpoints below are relative to that. `GET /` serves the dashboard page itself.
 | POST | `/api/import-patients` | Store the rows and run a cycle |
 | POST | `/api/book-appointment` | Book an appointment manually |
 | POST | `/api/import-escalated-cases` | Import escalated cases as JSON |
+| POST | `/api/patients/{patient_id}/portal-link` | Issue a demo patient portal access token |
+| GET | `/patient/{access_token}` | Patient self-service portal page |
+| GET | `/api/patient-portal/{access_token}/status` | Non-sensitive case summary for the portal |
+| GET | `/api/patient-portal/{access_token}/available-slots` | Bookable dates for the portal's slot picker |
+| POST | `/api/patient-portal/{access_token}/select-slot` | Book the patient's explicitly selected slot |
+| POST | `/api/patient-portal/{access_token}/no-suitable-slot` | "None of these times work" -> park for next-week retry |
+| POST | `/api/patient-portal/{access_token}/chat` | Secondary chat assistant for simple questions |
 
 ### GET /api/status
 Get agent statistics and operational metrics.

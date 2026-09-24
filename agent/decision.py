@@ -70,6 +70,7 @@ ACTION_DESCRIPTIONS: Dict[AgentAction, str] = {
     AgentAction.DO_NOTHING: "Take no action now",
     AgentAction.RECORD_OPT_OUT: "Record that the patient asked not to be contacted again",
     AgentAction.REQUEST_CLARIFICATION: "Ask the patient a clarifying question before proceeding",
+    AgentAction.MARK_PENDING_FUTURE_AVAILABILITY: "Park the case for a later re-check; no offered slot worked",
 }
 
 

@@ -55,6 +55,14 @@ class CaseStatus(Enum):
     DECLINED = "declined"              # Patient declined or postponed
     ESCALATED = "escalated"            # Transferred to staff for manual handling
     OPTED_OUT = "opted_out"            # Patient asked not to be contacted again
+    PENDING_FUTURE_AVAILABILITY = "pending_future_availability"
+    # Patient engaged (e.g. via the patient portal) but no offered slot
+    # worked for them. NOT a decline and NOT a booking - the case is parked
+    # with `next_followup_at` set so TriggerService makes it actionable
+    # again once that date arrives. Unlike the terminal outreach statuses
+    # above, this one is NOT excluded from TriggerService's actionability
+    # check - it is specifically what schedules the case to be picked up
+    # again.
 
 
 @dataclass

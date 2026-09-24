@@ -47,6 +47,12 @@ from core.models import FollowUpCase, CaseStatus
 # states for the OUTREACH lifecycle (not necessarily terminal for the
 # clinical relationship - e.g. DECLINED could still be revisited manually
 # by staff, but never automatically re-triggered).
+#
+# PENDING_FUTURE_AVAILABILITY is deliberately NOT included here: unlike the
+# statuses below, it is not terminal - it is exactly the state that is
+# waiting to become actionable again once `next_followup_at` is reached
+# (see is_actionable below), e.g. after a patient portal visitor picks
+# "none of these times work".
 _NOT_ACTIONABLE_STATUSES = frozenset({
     CaseStatus.BOOKED,
     CaseStatus.DECLINED,

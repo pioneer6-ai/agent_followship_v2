@@ -48,6 +48,11 @@ class ClinicPolicyConfig:
         booking_window_days: How many days ahead of "today" the agent may
             offer or accept appointment slots for. Enforced server-side in
             the scheduling layer regardless of what a client/UI requests.
+        followup_retry_days: How many days ahead to set `next_followup_at`
+            when a case is parked in PENDING_FUTURE_AVAILABILITY (e.g. the
+            patient portal's "none of these times work" flow). Distinct
+            from `booking_window_days`: this governs the re-check cadence,
+            not how far ahead slots may be offered.
     """
     working_hours: tuple[int, int] = (9, 18)  # 9 AM to 6 PM
     max_reminders_before_escalation: int = 3
@@ -57,6 +62,7 @@ class ClinicPolicyConfig:
     reminder_interval_days: int = 7
     clinic_timezone: str = "Asia/Singapore"
     booking_window_days: int = 7
+    followup_retry_days: int = 7
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "ClinicPolicyConfig":
@@ -75,6 +81,7 @@ class ClinicPolicyConfig:
             AGENT_CRITICAL_URGENCY_THRESHOLD_DAYS  (int, default 60)
             AGENT_CLINIC_TIMEZONE                  (str, default "Asia/Singapore")
             AGENT_BOOKING_WINDOW_DAYS              (int, default 7)
+            AGENT_FOLLOWUP_RETRY_DAYS              (int, default 7)
 
         Args:
             env: Mapping to read instead of ``os.environ`` (tests).
@@ -114,5 +121,10 @@ class ClinicPolicyConfig:
                 source,
                 "AGENT_BOOKING_WINDOW_DAYS",
                 defaults.booking_window_days,
+            ),
+            followup_retry_days=_int(
+                source,
+                "AGENT_FOLLOWUP_RETRY_DAYS",
+                defaults.followup_retry_days,
             ),
         )

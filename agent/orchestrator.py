@@ -1043,6 +1043,174 @@ class FollowUpAgentOrchestrator:
 
         print()
 
+    def handle_portal_slot_selection(
+        self,
+        patient_id: str,
+        selected_date: date,
+        today: Optional[date] = None,
+    ) -> "ActionDecision":
+        """
+        Book an appointment chosen explicitly through the patient portal's
+        slot picker (a button click, never free text, never routed through
+        an LLM or ConversationManager).
+
+        This follows the same reasoning loop as every other side-effecting
+        action: propose CONFIRM_BOOKING with affirmative consent (a slot
+        picker click IS unambiguous, explicit consent to that exact date -
+        there is no natural-language ambiguity to resolve) -> PolicyGuard
+        authorizes -> only then does the existing booking service run.
+        PolicyGuard's opt-out/emergency rules still apply, so an opted-out
+        patient's portal session cannot book even via this path.
+
+        The caller (the portal route) is responsible for independently
+        re-validating that `selected_date` exists, is available, is not in
+        the past, and is within the configured booking window BEFORE
+        calling this method - this method re-validates existence/
+        availability against the calendar again itself (never trusts that
+        the caller already did), but does not re-derive "is in the past" or
+        "within the booking window" since those require the caller's
+        request context (today's date is passed in explicitly for this
+        reason, rather than defaulting silently).
+
+        Args:
+            patient_id: Patient whose case this applies to.
+            selected_date: The exact date the patient selected. Must be a
+                date the calendar actually still has available; this method
+                re-checks that independently of whatever the browser sent.
+            today: Reference date (defaults to the orchestrator's clock).
+
+        Returns:
+            The ActionDecision that was actually authorized/executed, so
+            the caller can report ALLOW/DENY/FORCE_ESCALATION back to the
+            portal without duplicating PolicyGuard's logic.
+        """
+        if today is None:
+            today = self.clock.today()
+
+        case = self.active_cases.get(patient_id)
+        if case is None:
+            raise ValueError(f"unknown patient_id: {patient_id!r}")
+
+        proposed = ActionDecision(
+            action=AgentAction.CONFIRM_BOOKING,
+            rationale="Patient portal: explicit slot selection",
+            source="patient_portal",
+        )
+        decision = self._authorize_decision(
+            case,
+            proposed,
+            consent_signal="affirmative",
+        )
+
+        if decision.action != AgentAction.CONFIRM_BOOKING:
+            # PolicyGuard overrode the booking (e.g. opt-out, emergency).
+            # No calendar call is made at all in that case.
+            if decision.action == AgentAction.ESCALATE_TO_STAFF:
+                case.status = CaseStatus.ESCALATED
+                self.escalation_handler.escalate(
+                    case,
+                    reason="Patient portal booking attempt was overridden by PolicyGuard",
+                    priority="normal",
+                )
+            case.add_to_log(
+                f"Patient portal: booking attempt for {selected_date.isoformat()} "
+                f"was not authorized ({decision.rationale})"
+            )
+            return decision
+
+        # Re-validate against the calendar independently of the browser's
+        # claim: the slot must still actually be available. try_book with
+        # an explicit preferred_date performs exactly this check via
+        # CalendarIntegration.book_appointment before recording anything.
+        success, booked_date = self.scheduler.try_book(case, preferred_date=selected_date)
+
+        self.audit_logger.log_appointment_action(
+            case, "patient_portal_booking", booked_date if success else selected_date, success
+        )
+
+        if success:
+            case.status = CaseStatus.BOOKED
+            case.next_followup_at = None
+            case.add_to_log(
+                f"Patient portal: booked appointment for {booked_date.isoformat()}"
+            )
+            print(f"   ✅ Patient portal booked {case.patient.name} for {booked_date}")
+        else:
+            case.add_to_log(
+                f"Patient portal: slot {selected_date.isoformat()} was no longer "
+                f"available at booking time"
+            )
+            print(f"   ⚠️  Patient portal booking failed for {case.patient.name}: "
+                  f"{selected_date} unavailable")
+
+        return decision
+
+    def handle_no_suitable_slot(
+        self,
+        patient_id: str,
+        today: Optional[date] = None,
+    ) -> "ActionDecision":
+        """
+        Handle the patient portal's "None of these times work - remind me
+        next week" button.
+
+        This is a button click, not free text, so it never goes through
+        ConversationManager or an LLM either. It proposes
+        MARK_PENDING_FUTURE_AVAILABILITY, which PolicyGuard authorizes like
+        any other action (an opted-out or emergency-flagged patient's
+        portal session is still blocked from even parking a future
+        follow-up outside the normal safety path). On success, this only
+        updates case state (status + next_followup_at) - it never sends any
+        message and never touches the email/notification subsystem; a
+        separate outreach mechanism is responsible for acting on
+        `next_followup_at` once TriggerService admits the case again.
+
+        Args:
+            patient_id: Patient whose case this applies to.
+            today: Reference date (defaults to the orchestrator's clock).
+
+        Returns:
+            The authorized ActionDecision.
+        """
+        if today is None:
+            today = self.clock.today()
+
+        case = self.active_cases.get(patient_id)
+        if case is None:
+            raise ValueError(f"unknown patient_id: {patient_id!r}")
+
+        proposed = ActionDecision(
+            action=AgentAction.MARK_PENDING_FUTURE_AVAILABILITY,
+            rationale="Patient portal: no offered slot worked for the patient",
+            source="patient_portal",
+        )
+        decision = self._authorize_decision(case, proposed)
+
+        if decision.action != AgentAction.MARK_PENDING_FUTURE_AVAILABILITY:
+            if decision.action == AgentAction.ESCALATE_TO_STAFF:
+                case.status = CaseStatus.ESCALATED
+                self.escalation_handler.escalate(
+                    case,
+                    reason="Patient portal 'remind me later' was overridden by PolicyGuard",
+                    priority="normal",
+                )
+            case.add_to_log(
+                f"Patient portal: 'remind me later' was not authorized "
+                f"({decision.rationale})"
+            )
+            return decision
+
+        case.status = CaseStatus.PENDING_FUTURE_AVAILABILITY
+        case.next_followup_at = today + timedelta(days=self.policy.followup_retry_days)
+        case.add_to_log(
+            f"Patient portal: no suitable slot; next_followup_at set to "
+            f"{case.next_followup_at.isoformat()}"
+        )
+        print(f"   📅 {case.patient.name}: no suitable slot, will re-check on "
+              f"{case.next_followup_at}")
+
+        return decision
+
     def get_active_cases(self) -> list[FollowUpCase]:
         """
         Get all currently active follow-up cases.

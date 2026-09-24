@@ -28,6 +28,9 @@ class AgentAction(Enum):
         RECORD_OPT_OUT: Record that the patient asked not to be contacted again
         REQUEST_CLARIFICATION: Ask the patient a clarifying question instead of
             proceeding, because their consent signal was ambiguous
+        MARK_PENDING_FUTURE_AVAILABILITY: Record that the patient engaged but no
+            offered slot worked for them; park the case for a later re-check
+            rather than declining or booking
     """
     SEND_REMINDER = "send_reminder"
     PROPOSE_SLOT = "propose_slot"
@@ -38,3 +41,4 @@ class AgentAction(Enum):
     DO_NOTHING = "do_nothing"
     RECORD_OPT_OUT = "record_opt_out"
     REQUEST_CLARIFICATION = "request_clarification"
+    MARK_PENDING_FUTURE_AVAILABILITY = "mark_pending_future_availability"
