@@ -117,7 +117,11 @@ class CalendarIntegration(ABC):
 
     @abstractmethod
     def find_available_slots(
-        self, treatment_type: str, after: date, limit: int = 5
+        self,
+        treatment_type: str,
+        after: date,
+        limit: int = 5,
+        to_date: Optional[date] = None,
     ) -> list[date]:
         """
         Find available appointment slots for a given treatment type.
@@ -126,6 +130,11 @@ class CalendarIntegration(ABC):
             treatment_type: Type of treatment requiring appointment
             after: Find slots after this date
             limit: Maximum number of slots to return
+            to_date: Optional upper bound on the search window (e.g. the
+                clinic's configured booking window). When given, no slot
+                later than this date is returned, even if the 60-day safety
+                cap would otherwise allow it. When omitted, only the 60-day
+                safety cap applies (unchanged from before).
             
         Returns:
             List of available dates
@@ -181,7 +190,11 @@ class MockCalendarIntegration(CalendarIntegration):
         self._blocked_dates: set[date] = set()
 
     def find_available_slots(
-        self, treatment_type: str, after: date, limit: int = 5
+        self,
+        treatment_type: str,
+        after: date,
+        limit: int = 5,
+        to_date: Optional[date] = None,
     ) -> list[date]:
         """
         Generate mock available slots.
@@ -191,7 +204,13 @@ class MockCalendarIntegration(CalendarIntegration):
         """
         available_slots = []
         current_date = after + timedelta(days=1)
-        
+
+        # The 60-day safety cap always applies; `to_date` (e.g. the clinic's
+        # configured booking window) may narrow it further, but never widen
+        # it beyond 60 days.
+        safety_cap = after + timedelta(days=60)
+        hard_stop = min(safety_cap, to_date) if to_date is not None else safety_cap
+
         while len(available_slots) < limit:
             # Skip weekends (5=Saturday, 6=Sunday)
             if current_date.weekday() < 5 and current_date not in self._blocked_dates:
@@ -204,9 +223,8 @@ class MockCalendarIntegration(CalendarIntegration):
                     available_slots.append(current_date)
             
             current_date += timedelta(days=1)
-            
-            # Safety: don't search more than 60 days ahead
-            if current_date > after + timedelta(days=60):
+
+            if current_date > hard_stop:
                 break
         
         return available_slots
