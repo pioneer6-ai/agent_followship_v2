@@ -131,7 +131,7 @@ agent = FollowUpAgentOrchestrator.with_llm_decisions(
 )
 
 # Initialize LLM parser
-llm_parser = LLMPatientParser(use_llm=False)  # Set to True with API key for real LLM
+llm_parser = LLMPatientParser(use_llm=True)  # Set to True with API key for real LLM
 
 # Secondary chat assistant for the patient portal. Shares the SAME
 # `agent`/`data_store`/`calendar` instances above - a booking made here is
@@ -242,6 +242,30 @@ def cancel_outreach(**kwargs):
 
     results = agent.cancel_pending_sends(send_ids)
     return jsonify({'success': True, 'results': results})
+
+
+@app.route('/api/admin/clear-patient-data', methods=['POST'])
+@require_auth
+@require_role('admin')
+@require_csrf
+def clear_patient_data(**kwargs):
+    """Permanently clear patient data and related runtime state (admin only)."""
+    try:
+        deleted = scheduling_db.clear_patient_data()
+        runtime = agent.reset_runtime_state()
+        portal_tokens_cleared = len(patient_portal_tokens._tokens)
+        patient_portal_tokens._tokens.clear()
+        return jsonify({
+            'success': True,
+            **deleted,
+            **runtime,
+            'portal_tokens_cleared': portal_tokens_cleared,
+        })
+    except Exception as exc:
+        return jsonify({
+            'success': False,
+            'error': f'Could not clear patient data: {type(exc).__name__}: {exc}',
+        }), 500
 
 
 @app.route('/')
@@ -358,6 +382,88 @@ def staff_accounts():
     return render_template('staff_accounts.html')
 
 
+@app.route('/api/llm-status')
+def get_llm_status():
+    """Report runtime LLM readiness without revealing credentials."""
+    from tools.llm_providers import LlmProviderConfig
+
+    config = LlmProviderConfig.from_env()
+    engine = agent.decision_engine
+    client_ready = getattr(engine, 'client', None) is not None
+    last_error = getattr(engine, 'last_error', None)
+
+    if config.is_disabled or not client_ready:
+        status = 'rules-only'
+    elif last_error:
+        status = 'error'
+    else:
+        status = 'ready'
+
+    return jsonify({
+        'success': True,
+        'status': status,
+        'provider': config.kind,
+        'model': getattr(engine, 'model', None) or config.model,
+        'credential_configured': bool(config.api_key),
+        'client_ready': client_ready,
+        'last_error': last_error,
+        'verified': False,
+        'verification_note': 'Click Check connection for a live test.',
+    })
+
+
+@app.route('/api/llm-status/check', methods=['POST'])
+@require_auth
+@require_role('staff', 'admin')
+@require_csrf
+def check_llm_status(**kwargs):
+    """Perform one authenticated live LLM reachability check."""
+    from tools.llm_providers import LlmProviderConfig
+
+    config = LlmProviderConfig.from_env()
+    engine = agent.decision_engine
+    client = getattr(engine, 'client', None)
+    if config.is_disabled or client is None:
+        return jsonify({
+            'success': False,
+            'status': 'rules-only',
+            'error': 'No usable LLM client is configured; the rule engine is active.',
+        }), 503
+
+    try:
+        client.messages.create(
+            model=getattr(engine, 'model', None) or config.model,
+            max_tokens=8,
+            system='Reply with the single word: ready',
+            messages=[{'role': 'user', 'content': 'Confirm you are reachable.'}],
+        )
+        if hasattr(engine, 'last_error'):
+            engine.last_error = None
+        return jsonify({
+            'success': True,
+            'status': 'connected',
+            'provider': config.kind,
+            'model': getattr(engine, 'model', None) or config.model,
+            'credential_configured': bool(config.api_key),
+            'client_ready': True,
+            'verified': True,
+        })
+    except Exception as exc:
+        error = f'{type(exc).__name__}: {exc}'
+        if hasattr(engine, 'last_error'):
+            engine.last_error = error
+        return jsonify({
+            'success': False,
+            'status': 'error',
+            'provider': config.kind,
+            'model': getattr(engine, 'model', None) or config.model,
+            'credential_configured': bool(config.api_key),
+            'client_ready': True,
+            'verified': False,
+            'error': error,
+        }), 502
+
+
 @app.route('/api/status')
 def get_status():
     """
@@ -371,7 +477,10 @@ def get_status():
     # Add additional context
     stats['last_updated'] = datetime.now().isoformat()
     stats['total_patients'] = len(data_store.get_all_active_patients())
-    
+    # Calendar is the source of truth for booked appointments. This count
+    # includes pending and confirmed requests, matching slot capacity logic.
+    stats['calendar_booked_count'] = scheduling_db.count_active_appointments()
+
     return jsonify(stats)
 
 

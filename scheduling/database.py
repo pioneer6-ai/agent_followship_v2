@@ -15,6 +15,12 @@ class AppointmentStatus(str, Enum):
     COMPLETED = 'completed'
 
 
+ACTIVE_APPOINTMENT_STATUSES = (
+    AppointmentStatus.PENDING.value,
+    AppointmentStatus.CONFIRMED.value,
+)
+
+
 class SchedulingDatabase:
     def __init__(self, db_path: str = 'scheduling.db'):
         self.db_path = db_path
@@ -153,6 +159,50 @@ class SchedulingDatabase:
         finally:
             conn.close()
     
+    def clear_patient_data(self) -> Dict[str, int]:
+        """
+        Permanently remove patient records and their appointment data.
+
+        Clinic configuration, blocked periods, staff accounts, and the general
+        JSON audit history are intentionally preserved. Appointment audit rows
+        linked to deleted requests are removed before their parent requests.
+        """
+        conn = self.get_connection()
+        try:
+            conn.execute('PRAGMA foreign_keys = ON')
+            patient_count = conn.execute(
+                'SELECT COUNT(*) AS count FROM patients'
+            ).fetchone()['count']
+            appointment_count = conn.execute(
+                'SELECT COUNT(*) AS count FROM appointment_requests'
+            ).fetchone()['count']
+            audit_count = conn.execute(
+                '''SELECT COUNT(*) AS count FROM audit_log
+                   WHERE appointment_request_id IN (
+                       SELECT id FROM appointment_requests
+                   )'''
+            ).fetchone()['count']
+
+            conn.execute(
+                '''DELETE FROM audit_log
+                   WHERE appointment_request_id IN (
+                       SELECT id FROM appointment_requests
+                   )'''
+            )
+            conn.execute('DELETE FROM appointment_requests')
+            conn.execute('DELETE FROM patients')
+            conn.commit()
+            return {
+                'patients_deleted': int(patient_count),
+                'appointments_deleted': int(appointment_count),
+                'appointment_audit_rows_deleted': int(audit_count),
+            }
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def get_config(self) -> Dict[str, Any]:
         conn = self.get_connection()
         try:
@@ -326,7 +376,12 @@ class SchedulingDatabase:
         finally:
             conn.close()
     
-    def complete_appointment(self, appt_id: int, actor: str) -> bool:
+    def complete_appointment(
+        self,
+        appt_id: int,
+        actor: str,
+        details: str = 'Appointment marked as completed',
+    ) -> bool:
         now = datetime.now(timezone.utc).isoformat()
         conn = self.get_connection()
         try:
@@ -336,12 +391,12 @@ class SchedulingDatabase:
                     updated_at = ?
                 WHERE id = ? AND status = ?
             ''', (AppointmentStatus.COMPLETED.value, now, appt_id, AppointmentStatus.CONFIRMED.value))
-            
+
             if conn.total_changes > 0:
                 conn.execute('''
-                    INSERT INTO audit_log (appointment_request_id, action, actor, timestamp)
-                    VALUES (?, ?, ?, ?)
-                ''', (appt_id, 'completed', actor, now))
+                    INSERT INTO audit_log (appointment_request_id, action, actor, details, timestamp)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (appt_id, 'completed', actor, details, now))
                 conn.commit()
                 return True
             return False
@@ -382,6 +437,30 @@ class SchedulingDatabase:
         finally:
             conn.close()
     
+    def count_active_appointments(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> int:
+        """Count calendar appointments that occupy booked capacity."""
+        conn = self.get_connection()
+        try:
+            query = '''
+                SELECT COUNT(*) AS count
+                FROM appointment_requests
+                WHERE status IN (?, ?)
+            '''
+            params: List[Any] = list(ACTIVE_APPOINTMENT_STATUSES)
+            if start_date:
+                query += ' AND slot_date >= ?'
+                params.append(start_date)
+            if end_date:
+                query += ' AND slot_date <= ?'
+                params.append(end_date)
+            return int(conn.execute(query, params).fetchone()['count'])
+        finally:
+            conn.close()
+
     def get_appointments_for_slot(self, slot_datetime_utc: str) -> List[Dict]:
         conn = self.get_connection()
         try:

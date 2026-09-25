@@ -359,6 +359,25 @@ class FollowUpAgentOrchestrator:
         elif context == "booking confirmation":
             case.add_to_log(f"Sent booking confirmation via {outcome.channel.value}")
 
+    def reset_runtime_state(self) -> Dict[str, int]:
+        """Clear patient-related in-memory state after a database reset."""
+        with self._pending_sends_lock:
+            pending_count = len(self._pending_sends)
+            self._pending_sends.clear()
+
+        escalation_count = len(self.escalation_handler.escalated_cases)
+        active_case_count = len(self.active_cases)
+        undelivered_count = len(self.undelivered)
+        self.active_cases.clear()
+        self.undelivered.clear()
+        self.escalation_handler.escalated_cases.clear()
+        return {
+            "active_cases_cleared": active_case_count,
+            "pending_messages_cleared": pending_count,
+            "escalations_cleared": escalation_count,
+            "undelivered_records_cleared": undelivered_count,
+        }
+
     def get_pending_send_count(self) -> int:
         """Return the number of patient messages awaiting confirmation."""
         return len(self.get_pending_sends())

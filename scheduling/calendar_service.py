@@ -276,6 +276,34 @@ class CalendarService:
             conn.close()
 
     
+    def complete_appointment(
+        self,
+        appt_id: int,
+        actor: str,
+        notes: str = "",
+    ) -> Dict:
+        """Complete a confirmed appointment through the database state guard."""
+        appointment = self.db.get_appointment(appt_id)
+        if not appointment:
+            return {'success': False, 'error': 'Appointment not found'}
+        if appointment['status'] != AppointmentStatus.CONFIRMED.value:
+            return {
+                'success': False,
+                'error': f"Cannot complete appointment with status: {appointment['status']}",
+            }
+
+        completed = self.db.complete_appointment(
+            appt_id,
+            actor,
+            details=notes or 'Appointment marked as completed',
+        )
+        if not completed:
+            return {
+                'success': False,
+                'error': 'Appointment could not be completed; it may have changed state.',
+            }
+        return {'success': True}
+
     def approve_with_validation(self, appt_id: int, actor: str) -> Dict:
         """
         Approve a pending appointment with validation.

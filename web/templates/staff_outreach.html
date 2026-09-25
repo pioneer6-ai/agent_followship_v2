@@ -25,7 +25,11 @@
         .message-top input { margin-top: 4px; width: 18px; height: 18px; }
         .patient { font-size: 18px; font-weight: 700; }
         .meta { color: #546e7a; font-size: 14px; margin-top: 6px; }
-        .tag { display: inline-block; background: #e3f2fd; color: #1565c0; border-radius: 12px; padding: 3px 9px; margin-right: 5px; font-size: 12px; }
+        .tag { display: inline-block; border-radius: 12px; padding: 3px 9px; margin-right: 5px; font-size: 12px; font-weight: 700; text-transform: lowercase; }
+        .tag-critical { background: #fee2e2; color: #b91c1c; }
+        .tag-high { background: #ffedd5; color: #c2410c; }
+        .tag-medium { background: #fef3c7; color: #92400e; }
+        .tag-low { background: #dcfce7; color: #166534; }
         .preview { width: calc(100% - 30px); min-height: 120px; resize: vertical; white-space: pre-wrap; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 13px; margin: 14px 0 0 30px; line-height: 1.45; font: inherit; }
         .preview:read-only { background: #eceff1; color: #455a64; cursor: not-allowed; }
         .save-message { margin: 8px 0 0 30px; background: #546e7a; color: white; padding: 7px 11px; font-size: 12px; }
@@ -49,7 +53,7 @@
 <main>
     <div class="notice">
         <strong>Nothing on this page has been sent.</strong>
-        Review each patient, channel, recipient, and message. Select the messages you approve, then click <strong>Confirm Selected</strong>. Use <strong>Cancel Selected</strong> to discard messages without sending them.
+        After clicking <strong>Confirm Selected</strong>, the approved message will be sent to the patient by the configured channel. Alternatively, you can contact the patient manually, such as by email, SMS, or phone.
     </div>
     <div class="toolbar">
         <label><input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)"> Select all</label>
@@ -182,13 +186,13 @@
             addText(details, 'div', item.patient_name, 'patient');
             addText(details, 'div', `Patient ID: ${item.patient_id} · Recipient: ${item.recipient || 'No recipient found'}`, 'meta');
             addText(details, 'div', `${item.created_at} · scheduled for ${item.scheduled_for}`, 'meta');
-            const tags = document.createElement('div');
-            tags.style.marginTop = '8px';
-            addText(tags, 'span', item.context, 'tag');
-            addText(tags, 'span', item.channel, 'tag');
-            addText(tags, 'span', item.urgency, 'tag');
-            if (item.available_channels && item.available_channels.length) addText(tags, 'span', `Fallbacks: ${item.available_channels.join(', ')}`, 'tag');
-            details.appendChild(tags);
+            const category = document.createElement('div');
+            category.style.marginTop = '8px';
+            const urgency = ['critical', 'high', 'medium', 'low'].includes(item.urgency)
+                ? item.urgency
+                : 'low';
+            addText(category, 'span', urgency, `tag tag-${urgency}`);
+            details.appendChild(category);
             top.appendChild(details);
             card.appendChild(top);
 
