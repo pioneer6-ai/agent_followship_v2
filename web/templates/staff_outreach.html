@@ -30,6 +30,7 @@
         .preview:read-only { background: #eceff1; color: #455a64; cursor: not-allowed; }
         .save-message { margin: 8px 0 0 30px; background: #546e7a; color: white; padding: 7px 11px; font-size: 12px; }
         .save-message:hover { background: #37474f; }
+        .portal-link { display: block; margin: 8px 0 0 30px; color: #1565c0; font-weight: 600; }
         .empty { text-align: center; background: white; padding: 45px; border-radius: 8px; color: #607d8b; }
         #status { margin: 10px 0; min-height: 20px; }
         .error { color: #c62828; }
@@ -93,6 +94,57 @@
         return node;
     }
 
+    function extractPortalUrl(message) {
+        const match = String(message || '').match(/(?:https?:\/\/[^\s]+)?\/patient\/[A-Za-z0-9_-]+/);
+        return match ? match[0].replace(/[.,)]+$/, '') : '';
+    }
+
+    function renderPortalLink(container, message) {
+        container.textContent = '';
+        const url = extractPortalUrl(message);
+        if (!url) return;
+
+        const link = document.createElement('a');
+        link.className = 'portal-link';
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = '🔗 Open patient booking page';
+        link.title = url;
+        container.appendChild(link);
+    }
+
+    function renderMessageContent(container, message) {
+        container.textContent = '';
+        const text = String(message || '');
+        const urlPattern = /https?:\/\/[^\s]+/g;
+        let cursor = 0;
+        let match;
+
+        while ((match = urlPattern.exec(text)) !== null) {
+            const rawUrl = match[0];
+            const url = rawUrl.replace(/[.,)]+$/, '');
+            const trailing = rawUrl.slice(url.length);
+            if (match.index > cursor) {
+                container.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+            }
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = url;
+            link.title = 'Open patient booking page';
+            container.appendChild(link);
+            if (trailing) container.appendChild(document.createTextNode(trailing));
+            cursor = match.index + rawUrl.length;
+        }
+
+        if (cursor < text.length) {
+            container.appendChild(document.createTextNode(text.slice(cursor)));
+        }
+    }
+
     function setUrgencyFilter(value) {
         document.getElementById('urgencyFilter').value = value;
         document.getElementById('selectAll').checked = true;
@@ -140,23 +192,33 @@
             top.appendChild(details);
             card.appendChild(top);
 
+            const preview = document.createElement('div');
+            preview.className = 'preview';
+            renderMessageContent(preview, item.message);
+            card.appendChild(preview);
+
             const editor = document.createElement('textarea');
             editor.className = 'preview';
             editor.value = item.message || '';
-            editor.readOnly = true;
-            editor.setAttribute('aria-label', `Message for ${item.patient_name}`);
+            editor.style.display = 'none';
+            editor.setAttribute('aria-label', `Edit message for ${item.patient_name}`);
             card.appendChild(editor);
+
+            const portalLink = document.createElement('div');
+            renderPortalLink(portalLink, item.message);
+            card.appendChild(portalLink);
 
             const saveButton = document.createElement('button');
             saveButton.className = 'save-message';
             saveButton.textContent = 'Edit message';
             saveButton.addEventListener('click', () => {
-                if (editor.readOnly) {
-                    editor.readOnly = false;
+                if (editor.style.display === 'none') {
+                    editor.style.display = 'block';
+                    preview.style.display = 'none';
                     saveButton.textContent = 'Save message edit';
                     editor.focus();
                 } else {
-                    updateMessage(item.send_id, editor.value, saveButton, editor);
+                    updateMessage(item.send_id, editor.value, saveButton, editor, portalLink, preview);
                 }
             });
             card.appendChild(saveButton);
@@ -164,7 +226,7 @@
         });
     }
 
-    async function updateMessage(sendId, message, button, editor) {
+    async function updateMessage(sendId, message, button, editor, portalLink, preview) {
         if (!message.trim()) {
             setStatus('Message cannot be empty.', true);
             return;
@@ -182,7 +244,10 @@
             const item = pendingMessages.find(candidate => candidate.send_id === sendId);
             if (item) item.message = data.message.message;
             editor.value = data.message.message;
-            editor.readOnly = true;
+            editor.style.display = 'none';
+            preview.style.display = 'block';
+            renderMessageContent(preview, data.message.message);
+            renderPortalLink(portalLink, data.message.message);
             button.textContent = 'Saved';
             setStatus('Message updated and locked. It is still pending and has not been sent.');
             window.setTimeout(() => { button.textContent = 'Edit message'; }, 1500);

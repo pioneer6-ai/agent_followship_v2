@@ -1010,8 +1010,13 @@ class FollowUpAgentOrchestrator:
             print(f"   🧠 {patient.name}: model chose {action.value} "
                   f"({decision.rationale})")
         if action == AgentAction.SEND_REMINDER:
-            # Compose personalized message
-            message_type = "urgent" if case.urgency.value == "critical" else "initial"
+            # Compose personalized message. Patients with recorded no-shows get
+            # the no-show template, which appends their own portal booking URL.
+            # Normal overdue patients keep the existing initial/urgent message.
+            if patient.no_show_history > 0:
+                message_type = "no_show"
+            else:
+                message_type = "urgent" if case.urgency.value == "critical" else "initial"
             message = self.message_composer.compose(case, message_type)
 
             self._queue_outbound_message(
