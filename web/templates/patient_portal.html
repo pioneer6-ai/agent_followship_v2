@@ -344,15 +344,16 @@
             }
         }
 
-        noSlotBtn.disabled = true;
-        const res = await fetch(`${BASE}/no-suitable-slot`, { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-            showFeedback(bookingFeedback, data.message || data.error || 'Could not save your request. Please try again.', 'error');
-            noSlotBtn.disabled = false;
-            return;
-        }
-        showFeedback(bookingFeedback, data.message, 'info');
+        noSlotBtn.addEventListener('click', async () => {
+            noSlotBtn.disabled = true;
+            const res = await fetch(`${BASE}/no-suitable-slot`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                showFeedback(bookingFeedback, data.message || data.error || 'Could not save your request. Please try again.', 'error');
+                noSlotBtn.disabled = false;
+                return;
+            }
+            showFeedback(bookingFeedback, data.message, 'info');
             if (data.status) setStatusPill(data.status);
             slotList.innerHTML = '<p style="color:#999;">We\'ll check back with you next week.</p>';
             noSlotBtn.style.display = 'none';

@@ -246,6 +246,63 @@ class TestStaffCalendarSeesTheExactBookedSlot:
 # A full/unavailable session must not be selectable / bookable.
 # ---------------------------------------------------------------------------
 
+class TestDoubleBookingPreventedFromBothSurfaces:
+    """A slot filled to capacity via the STAFF calendar route must reject
+    a subsequent PATIENT PORTAL booking attempt for a DIFFERENT patient on
+    that exact (date, session, time) - and vice versa is already covered
+    by TestCapacityProtectionAcrossPortalAndStaffCalendar in
+    test_calendar_unification.py. Both directions go through the same
+    atomic CalendarService.check_capacity_and_book, so capacity can never
+    be exceeded regardless of which surface initiated which booking."""
+
+    def test_staff_filling_a_slot_to_capacity_blocks_a_different_patients_portal_booking(self, client):
+        seed_patient_with_case()
+        token = issue_token(client, "T100")
+        payload = get_available_slots_payload(client, token)
+        target_date, target_session, target_time = first_date_and_time(payload)
+
+        slot = next(
+            s for s in calendar.calendar_service.generate_slots_for_date(target_date)
+            if s["session"] == target_session and s["time"] == target_time
+        )
+        config = scheduling_db.get_config()
+        capacity = config["slots_per_session"]
+        for i in range(capacity):
+            result = calendar.calendar_service.check_capacity_and_book(
+                patient_id=f"STAFF-FILL-{i}",
+                patient_name="Staff Filled",
+                slot_datetime_utc=slot["datetime_utc"],
+                slot_date=slot["date"],
+                slot_session=slot["session"],
+                slot_time=slot["time"],
+                requested_by="staff",
+                source="staff",
+            )
+            assert result["success"]
+
+        # A second patient's Patient Portal booking attempt for the exact
+        # same now-full slot must be rejected, and must not create a row.
+        seed_patient_with_case("T200", "Second Patient")
+        token2 = issue_token(client, "T200")
+        resp = client.post(
+            f"/api/patient-portal/{token2}/select-slot",
+            json={"appointment_date": target_date, "session": target_session, "time": target_time},
+        )
+        data = resp.get_json()
+        assert data["success"] is False
+
+        conn = scheduling_db.get_connection()
+        try:
+            count = conn.execute(
+                "SELECT COUNT(*) as c FROM appointment_requests "
+                "WHERE slot_datetime_utc = ? AND status IN ('pending', 'confirmed')",
+                (slot["datetime_utc"],),
+            ).fetchone()["c"]
+        finally:
+            conn.close()
+        assert count == capacity, "capacity must never be exceeded regardless of booking source"
+
+
 class TestUnavailableSessionCannotBeBooked:
     def test_a_fully_booked_session_is_absent_from_available_slots_response(self, client):
         seed_patient_with_case()
