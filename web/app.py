@@ -18,6 +18,13 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Load .env before anything else so API keys are available at module init time
+try:
+    from hospital_setup import load_dotenv as _load_dotenv
+    _load_dotenv()
+except Exception:
+    pass  # Safe to skip if hospital_setup is unavailable
+
 from flask import Flask, render_template, jsonify, request
 from datetime import date, datetime, timedelta
 import json
@@ -61,7 +68,7 @@ if had_error:
 agent = FollowUpAgentOrchestrator.with_llm_decisions(data_store, calendar, policy, urgency_config=urgency_config)
 
 # Initialize LLM parser
-llm_parser = LLMPatientParser(use_llm=False)  # Set to True with API key for real LLM
+llm_parser = LLMPatientParser(use_llm=True)  # Set to True with API key for real LLM
 
 # Initialize calendar/scheduling system
 # Use absolute paths relative to this file's location

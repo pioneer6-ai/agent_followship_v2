@@ -13,8 +13,10 @@ python-dateutil==2.8.2
 # needs this on Windows; Linux/macOS ship the tzdata natively.
 tzdata==2024.1
 
-# For future LLM integration (optional)
-# openai==1.3.0
+# For LLM integration — used by utils/llm_parser.py for intelligent patient
+# data parsing (handles messy/swapped field values). Also drives the openai-
+# compatible path in tools/llm_providers.py (Gemini, vLLM, LiteLLM, etc.).
+openai==1.51.0
 # Required for LIVE Claude usage: the tools/ tool-use loop AND the agent's
 # DECIDE step (agent/decision.py). Everything else, including the offline demo
 # and the whole test suite, runs without it -- the import is lazy and the agent

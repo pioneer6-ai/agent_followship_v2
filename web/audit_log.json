@@ -1,0 +1,2458 @@
+[
+  {
+    "timestamp": "2026-09-24T15:53:08.602200",
+    "event_type": "agent_decision",
+    "patient_id": "JSON047",
+    "patient_name": "Beau Hartley",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 304,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Beau Hartley (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:08.610202",
+    "event_type": "communication",
+    "patient_id": "JSON047",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Beau Hartley,\n\nWe're concerned about your overdue post surgery appointment. Please contact us ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:10.368115",
+    "event_type": "agent_decision",
+    "patient_id": "JSON034",
+    "patient_name": "Jace Norris",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 297,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Jace Norris (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:10.371128",
+    "event_type": "communication",
+    "patient_id": "JSON034",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Jace Norris,\n\nWe're concerned about your overdue post surgery appointment. Please contact us a..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:12.260780",
+    "event_type": "agent_decision",
+    "patient_id": "JSON012",
+    "patient_name": "Jared Hunt",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 282,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Jared Hunt (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:12.262781",
+    "event_type": "communication",
+    "patient_id": "JSON012",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Jared Hunt,\n\nWe're concerned about your overdue post surgery appointment. Please contact us at..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:14.850690",
+    "event_type": "agent_decision",
+    "patient_id": "JSON028",
+    "patient_name": "Brody Long",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 276,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Brody Long (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:14.851690",
+    "event_type": "communication",
+    "patient_id": "JSON028",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Brody Long,\n\nWe're concerned about your overdue post surgery appointment. Please contact us at..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:18.893636",
+    "event_type": "agent_decision",
+    "patient_id": "JSON042",
+    "patient_name": "Sloane Vega",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 276,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sloane Vega (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:18.896164",
+    "event_type": "communication",
+    "patient_id": "JSON042",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sloane Vega,\n\nWe're concerned about your overdue root canal followup appointment. Please conta..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.052454",
+    "event_type": "agent_decision",
+    "patient_id": "JSON016",
+    "patient_name": "Preston Murray",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 264,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Preston Murray (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.055503",
+    "event_type": "communication",
+    "patient_id": "JSON016",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Preston Murray,\n\nWe're concerned about your overdue root canal followup appointment. Please co..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.411248",
+    "event_type": "agent_decision",
+    "patient_id": "JSON052",
+    "patient_name": "Ryder Cannon",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 263,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Ryder Cannon (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.412721",
+    "event_type": "communication",
+    "patient_id": "JSON052",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Ryder Cannon,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.667371",
+    "event_type": "agent_decision",
+    "patient_id": "JSON056",
+    "patient_name": "Marlowe Stanton",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 262,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Marlowe Stanton (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.670379",
+    "event_type": "communication",
+    "patient_id": "JSON056",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Marlowe Stanton,\n\nWe're concerned about your overdue post surgery appointment. Please contact ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.960686",
+    "event_type": "agent_decision",
+    "patient_id": "JSON022",
+    "patient_name": "Dillon Watkins",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 257,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Dillon Watkins (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:21.962685",
+    "event_type": "communication",
+    "patient_id": "JSON022",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Dillon Watkins,\n\nWe're concerned about your overdue periodontal maintenance appointment. Pleas..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:22.245318",
+    "event_type": "agent_decision",
+    "patient_id": "JSON037",
+    "patient_name": "Kayla Barber",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 241,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Kayla Barber (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:22.246318",
+    "event_type": "communication",
+    "patient_id": "JSON037",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Kayla Barber,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:22.529283",
+    "event_type": "agent_decision",
+    "patient_id": "JSON019",
+    "patient_name": "Leah Simmons",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 239,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Leah Simmons (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:22.531270",
+    "event_type": "communication",
+    "patient_id": "JSON019",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Leah Simmons,\n\nWe're concerned about your overdue post surgery appointment. Please contact us ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:22.820676",
+    "event_type": "agent_decision",
+    "patient_id": "JSON032",
+    "patient_name": "Chase Marsh",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 227,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Chase Marsh (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:22.821675",
+    "event_type": "communication",
+    "patient_id": "JSON032",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Chase Marsh,\n\nWe're concerned about your overdue root canal followup appointment. Please conta..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.096210",
+    "event_type": "agent_decision",
+    "patient_id": "JSON059",
+    "patient_name": "Cove Prescott",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 219,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Cove Prescott (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.098120",
+    "event_type": "communication",
+    "patient_id": "JSON059",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Cove Prescott,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.379943",
+    "event_type": "agent_decision",
+    "patient_id": "JSON050",
+    "patient_name": "Sage Osborne",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 211,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sage Osborne (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.381943",
+    "event_type": "communication",
+    "patient_id": "JSON050",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sage Osborne,\n\nWe're concerned about your overdue root canal followup appointment. Please cont..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.665798",
+    "event_type": "agent_decision",
+    "patient_id": "JSON009",
+    "patient_name": "Amber Russell",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 208,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Amber Russell (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.667802",
+    "event_type": "communication",
+    "patient_id": "JSON009",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Amber Russell,\n\nWe're concerned about your overdue root canal followup appointment. Please con..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.961181",
+    "event_type": "agent_decision",
+    "patient_id": "JSON024",
+    "patient_name": "Tristan Kelley",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 203,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Tristan Kelley (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:23.964181",
+    "event_type": "communication",
+    "patient_id": "JSON024",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Tristan Kelley,\n\nWe're concerned about your overdue root canal followup appointment. Please co..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:24.231302",
+    "event_type": "agent_decision",
+    "patient_id": "JSON038",
+    "patient_name": "Tucker Malone",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 188,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Tucker Malone (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:24.234302",
+    "event_type": "communication",
+    "patient_id": "JSON038",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Tucker Malone,\n\nWe're concerned about your overdue post surgery appointment. Please contact us..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:24.531350",
+    "event_type": "agent_decision",
+    "patient_id": "JSON004",
+    "patient_name": "Brian Foster",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 177,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Brian Foster (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:24.534268",
+    "event_type": "communication",
+    "patient_id": "JSON004",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Brian Foster,\n\nWe're concerned about your overdue post surgery appointment. Please contact us ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:24.835218",
+    "event_type": "agent_decision",
+    "patient_id": "JSON045",
+    "patient_name": "Indie Walsh",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 163,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Indie Walsh (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:24.837219",
+    "event_type": "communication",
+    "patient_id": "JSON045",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Indie Walsh,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please c..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.090981",
+    "event_type": "agent_decision",
+    "patient_id": "JSON006",
+    "patient_name": "Marcus Webb",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 159,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Marcus Webb (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.093504",
+    "event_type": "communication",
+    "patient_id": "JSON006",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Marcus Webb,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please c..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.373899",
+    "event_type": "agent_decision",
+    "patient_id": "JSON040",
+    "patient_name": "Hudson Blake",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 158,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Hudson Blake (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.375891",
+    "event_type": "communication",
+    "patient_id": "JSON040",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Hudson Blake,\n\nWe're concerned about your overdue orthodontic adjustment appointment. Please c..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.668572",
+    "event_type": "agent_decision",
+    "patient_id": "JSON026",
+    "patient_name": "Nolan Fox",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 153,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Nolan Fox (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.670564",
+    "event_type": "communication",
+    "patient_id": "JSON026",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Nolan Fox,\n\nWe're concerned about your overdue post surgery appointment. Please contact us at ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.950236",
+    "event_type": "agent_decision",
+    "patient_id": "JSON054",
+    "patient_name": "Atlas Quinn",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 153,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Atlas Quinn (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:25.953250",
+    "event_type": "communication",
+    "patient_id": "JSON054",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Atlas Quinn,\n\nWe're concerned about your overdue cavity treatment appointment. Please contact ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:26.249005",
+    "event_type": "agent_decision",
+    "patient_id": "JSON002",
+    "patient_name": "Kevin Rodriguez",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 143,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Kevin Rodriguez (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:26.251005",
+    "event_type": "communication",
+    "patient_id": "JSON002",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Kevin Rodriguez,\n\nWe're concerned about your overdue root canal followup appointment. Please c..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:26.511969",
+    "event_type": "agent_decision",
+    "patient_id": "JSON011",
+    "patient_name": "Melissa Owens",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 141,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Melissa Owens (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:26.513969",
+    "event_type": "communication",
+    "patient_id": "JSON011",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Melissa Owens,\n\nWe're concerned about your overdue orthodontic adjustment appointment. Please ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:26.813652",
+    "event_type": "agent_decision",
+    "patient_id": "JSON058",
+    "patient_name": "Crew Langley",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 136,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Crew Langley (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:26.816652",
+    "event_type": "communication",
+    "patient_id": "JSON058",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Crew Langley,\n\nWe're concerned about your overdue orthodontic adjustment appointment. Please c..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.092794",
+    "event_type": "agent_decision",
+    "patient_id": "JSON036",
+    "patient_name": "Reid Cobb",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 123,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Reid Cobb (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.094794",
+    "event_type": "communication",
+    "patient_id": "JSON036",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Reid Cobb,\n\nWe're concerned about your overdue cavity treatment appointment. Please contact us..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.370977",
+    "event_type": "agent_decision",
+    "patient_id": "JSON043",
+    "patient_name": "Knox Sutton",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 119,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Knox Sutton (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.378979",
+    "event_type": "communication",
+    "patient_id": "JSON043",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Knox Sutton,\n\nWe're concerned about your overdue post surgery appointment. Please contact us a..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.653652",
+    "event_type": "agent_decision",
+    "patient_id": "JSON018",
+    "patient_name": "Garrett Hamilton",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 117,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Garrett Hamilton (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.656651",
+    "event_type": "communication",
+    "patient_id": "JSON018",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Garrett Hamilton,\n\nWe're concerned about your overdue cavity treatment appointment. Please con..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.920357",
+    "event_type": "agent_decision",
+    "patient_id": "JSON014",
+    "patient_name": "Spencer Cole",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 116,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Spencer Cole (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:27.923357",
+    "event_type": "communication",
+    "patient_id": "JSON014",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Spencer Cole,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:28.212186",
+    "event_type": "agent_decision",
+    "patient_id": "JSON021",
+    "patient_name": "Paige Dixon",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 103,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Paige Dixon (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:28.214185",
+    "event_type": "communication",
+    "patient_id": "JSON021",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Paige Dixon,\n\nWe're concerned about your overdue orthodontic adjustment appointment. Please co..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:28.509702",
+    "event_type": "agent_decision",
+    "patient_id": "JSON030",
+    "patient_name": "Wade Hicks",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 102,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Wade Hicks (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:28.513206",
+    "event_type": "communication",
+    "patient_id": "JSON030",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Wade Hicks,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please co..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:28.790032",
+    "event_type": "agent_decision",
+    "patient_id": "JSON007",
+    "patient_name": "Courtney Shaw",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 97,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Courtney Shaw (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:28.792032",
+    "event_type": "communication",
+    "patient_id": "JSON007",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Courtney Shaw,\n\nWe're concerned about your overdue post surgery appointment. Please contact us..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.076582",
+    "event_type": "agent_decision",
+    "patient_id": "JSON017",
+    "patient_name": "Danielle Ford",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 84,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Danielle Ford (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.078919",
+    "event_type": "communication",
+    "patient_id": "JSON017",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Danielle Ford,\n\nWe're concerned about your overdue post surgery appointment. Please contact us..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.359595",
+    "event_type": "agent_decision",
+    "patient_id": "JSON046",
+    "patient_name": "Remy Fitzgerald",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 82,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Remy Fitzgerald (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.362585",
+    "event_type": "communication",
+    "patient_id": "JSON046",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Remy Fitzgerald,\n\nWe're concerned about your overdue post surgery appointment. Please contact ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.627803",
+    "event_type": "agent_decision",
+    "patient_id": "JSON057",
+    "patient_name": "Harlow Vance",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 75,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Harlow Vance (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.631848",
+    "event_type": "communication",
+    "patient_id": "JSON057",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Harlow Vance,\n\nWe're concerned about your overdue post surgery appointment. Please contact us ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.929813",
+    "event_type": "agent_decision",
+    "patient_id": "P001",
+    "patient_name": "Sarah Johnson",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 69,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sarah Johnson (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:29.932808",
+    "event_type": "communication",
+    "patient_id": "P001",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sarah Johnson,\n\nWe're concerned about your overdue post surgery appointment. Please contact us..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:30.211519",
+    "event_type": "agent_decision",
+    "patient_id": "P012",
+    "patient_name": "Thomas Lee",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 60,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Thomas Lee (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:30.215028",
+    "event_type": "communication",
+    "patient_id": "P012",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Thomas Lee,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please co..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:30.493128",
+    "event_type": "agent_decision",
+    "patient_id": "JSON008",
+    "patient_name": "Derek Stone",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 55,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Derek Stone (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:30.496129",
+    "event_type": "communication",
+    "patient_id": "JSON008",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Derek Stone,\n\nWe're concerned about your overdue cavity treatment appointment. Please contact ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:30.783297",
+    "event_type": "agent_decision",
+    "patient_id": "JSON027",
+    "patient_name": "Sadie Porter",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 48,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sadie Porter (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:30.786319",
+    "event_type": "communication",
+    "patient_id": "JSON027",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sadie Porter,\n\nWe're concerned about your overdue cavity treatment appointment. Please contact..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.059382",
+    "event_type": "agent_decision",
+    "patient_id": "JSON003",
+    "patient_name": "Nicole Campbell",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 46,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Nicole Campbell (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.063428",
+    "event_type": "communication",
+    "patient_id": "JSON003",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Nicole Campbell,\n\nWe're concerned about your overdue orthodontic adjustment appointment. Pleas..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.344510",
+    "event_type": "agent_decision",
+    "patient_id": "P002",
+    "patient_name": "Michael Chen",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 36,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Michael Chen (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.347510",
+    "event_type": "communication",
+    "patient_id": "P002",
+    "channel": "whatsapp",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Michael Chen,\n\nWe're concerned about your overdue root canal followup appointment. Please cont..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.624168",
+    "event_type": "agent_decision",
+    "patient_id": "JSON044",
+    "patient_name": "Finley Cross",
+    "case_status": "pending",
+    "urgency": "high",
+    "days_overdue": 33,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Finley Cross (Urgency: high, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.627177",
+    "event_type": "communication",
+    "patient_id": "JSON044",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Finley Cross,\n\nWe noticed you're overdue for your cavity treatment appointment. To maintain yo..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.912858",
+    "event_type": "agent_decision",
+    "patient_id": "P003",
+    "patient_name": "Emily Rodriguez",
+    "case_status": "pending",
+    "urgency": "high",
+    "days_overdue": 25,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Emily Rodriguez (Urgency: high, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:31.914850",
+    "event_type": "communication",
+    "patient_id": "P003",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Emily Rodriguez,\n\nWe noticed you're overdue for your cavity treatment appointment. To maintain..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:32.209164",
+    "event_type": "agent_decision",
+    "patient_id": "JSON049",
+    "patient_name": "Wren Caldwell",
+    "case_status": "pending",
+    "urgency": "high",
+    "days_overdue": 25,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Wren Caldwell (Urgency: high, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:32.212164",
+    "event_type": "communication",
+    "patient_id": "JSON049",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Wren Caldwell,\n\nWe noticed you're overdue for your orthodontic adjustment appointment. To main..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:32.483117",
+    "event_type": "agent_decision",
+    "patient_id": "P009",
+    "patient_name": "Maria Garcia",
+    "case_status": "pending",
+    "urgency": "high",
+    "days_overdue": 24,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Maria Garcia (Urgency: high, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:32.486113",
+    "event_type": "communication",
+    "patient_id": "P009",
+    "channel": "phone_call",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Maria Garcia,\n\nWe noticed you're overdue for your post surgery appointment. To maintain your d..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:32.753328",
+    "event_type": "agent_decision",
+    "patient_id": "P005",
+    "patient_name": "Jennifer Taylor",
+    "case_status": "pending",
+    "urgency": "medium",
+    "days_overdue": 20,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Jennifer Taylor (Urgency: medium, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:32.756328",
+    "event_type": "communication",
+    "patient_id": "P005",
+    "channel": "whatsapp",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Jennifer Taylor,\n\nIt's time for your periodontal maintenance appointment! We'd love to see you..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.039625",
+    "event_type": "agent_decision",
+    "patient_id": "P008",
+    "patient_name": "James Wilson",
+    "case_status": "pending",
+    "urgency": "medium",
+    "days_overdue": 20,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for James Wilson (Urgency: medium, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.042752",
+    "event_type": "communication",
+    "patient_id": "P008",
+    "channel": "whatsapp",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello James Wilson,\n\nIt's time for your cleaning appointment! We'd love to see you soon. Reply with ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.337564",
+    "event_type": "agent_decision",
+    "patient_id": "P004",
+    "patient_name": "David Kim",
+    "case_status": "pending",
+    "urgency": "medium",
+    "days_overdue": 10,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for David Kim (Urgency: medium, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.341564",
+    "event_type": "communication",
+    "patient_id": "P004",
+    "channel": "email",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello David Kim,\n\nIt's time for your orthodontic adjustment appointment! We'd love to see you soon. ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.614534",
+    "event_type": "agent_decision",
+    "patient_id": "P007",
+    "patient_name": "Lisa Martinez",
+    "case_status": "pending",
+    "urgency": "low",
+    "days_overdue": 15,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Lisa Martinez (Urgency: low, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.617534",
+    "event_type": "communication",
+    "patient_id": "P007",
+    "channel": "email",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Lisa Martinez,\n\nIt's time for your checkup appointment! We'd love to see you soon. Reply with ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.884815",
+    "event_type": "agent_decision",
+    "patient_id": "P006",
+    "patient_name": "Robert Anderson",
+    "case_status": "pending",
+    "urgency": "low",
+    "days_overdue": 10,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Robert Anderson (Urgency: low, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:33.888038",
+    "event_type": "communication",
+    "patient_id": "P006",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Robert Anderson,\n\nIt's time for your cleaning appointment! We'd love to see you soon. Reply wi..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:34.196902",
+    "event_type": "agent_decision",
+    "patient_id": "JSON031",
+    "patient_name": "Sierra Cunningham",
+    "case_status": "pending",
+    "urgency": "low",
+    "days_overdue": 8,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sierra Cunningham (Urgency: low, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:34.206920",
+    "event_type": "communication",
+    "patient_id": "JSON031",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sierra Cunningham,\n\nIt's time for your orthodontic adjustment appointment! We'd love to see yo..."
+  },
+  {
+    "timestamp": "2026-09-24T15:53:34.483474",
+    "event_type": "agent_decision",
+    "patient_id": "P010",
+    "patient_name": "Kevin Brown",
+    "case_status": "pending",
+    "urgency": "low",
+    "days_overdue": 7,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Kevin Brown (Urgency: low, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:53:34.492989",
+    "event_type": "communication",
+    "patient_id": "P010",
+    "channel": "email",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Kevin Brown,\n\nIt's time for your orthodontic adjustment appointment! We'd love to see you soon..."
+  },
+  {
+    "timestamp": "2026-09-24T15:59:16.306625",
+    "event_type": "agent_decision",
+    "patient_id": "JSON047",
+    "patient_name": "Beau Hartley",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 304,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Beau Hartley (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:59:16.310625",
+    "event_type": "communication",
+    "patient_id": "JSON047",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Beau Hartley,\n\nWe're concerned about your overdue post surgery appointment. Please contact us ..."
+  },
+  {
+    "timestamp": "2026-09-24T15:59:18.438447",
+    "event_type": "agent_decision",
+    "patient_id": "JSON034",
+    "patient_name": "Jace Norris",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 297,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Jace Norris (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:59:18.447446",
+    "event_type": "communication",
+    "patient_id": "JSON034",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Jace Norris,\n\nWe're concerned about your overdue post surgery appointment. Please contact us a..."
+  },
+  {
+    "timestamp": "2026-09-24T15:59:20.703560",
+    "event_type": "agent_decision",
+    "patient_id": "JSON012",
+    "patient_name": "Jared Hunt",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 282,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Jared Hunt (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:59:20.712553",
+    "event_type": "communication",
+    "patient_id": "JSON012",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Jared Hunt,\n\nWe're concerned about your overdue post surgery appointment. Please contact us at..."
+  },
+  {
+    "timestamp": "2026-09-24T15:59:22.256986",
+    "event_type": "agent_decision",
+    "patient_id": "JSON028",
+    "patient_name": "Brody Long",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 276,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Brody Long (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:59:22.264074",
+    "event_type": "communication",
+    "patient_id": "JSON028",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Brody Long,\n\nWe're concerned about your overdue post surgery appointment. Please contact us at..."
+  },
+  {
+    "timestamp": "2026-09-24T15:59:24.465019",
+    "event_type": "agent_decision",
+    "patient_id": "JSON042",
+    "patient_name": "Sloane Vega",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 276,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sloane Vega (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:59:24.469027",
+    "event_type": "communication",
+    "patient_id": "JSON042",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sloane Vega,\n\nWe're concerned about your overdue root canal followup appointment. Please conta..."
+  },
+  {
+    "timestamp": "2026-09-24T15:59:26.653623",
+    "event_type": "agent_decision",
+    "patient_id": "JSON016",
+    "patient_name": "Preston Murray",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 264,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Preston Murray (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:59:26.657631",
+    "event_type": "communication",
+    "patient_id": "JSON016",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Preston Murray,\n\nWe're concerned about your overdue root canal followup appointment. Please co..."
+  },
+  {
+    "timestamp": "2026-09-24T15:59:26.922332",
+    "event_type": "agent_decision",
+    "patient_id": "JSON052",
+    "patient_name": "Ryder Cannon",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 263,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Ryder Cannon (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T15:59:26.926332",
+    "event_type": "communication",
+    "patient_id": "JSON052",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Ryder Cannon,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please ..."
+  },
+  {
+    "timestamp": "2026-09-24T16:07:57.229319",
+    "event_type": "agent_decision",
+    "patient_id": "MR-3310",
+    "patient_name": "Lim Kok Weng",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 210,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Lim Kok Weng (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:07:57.251348",
+    "event_type": "communication",
+    "patient_id": "MR-3310",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Lim Kok Weng,\n\nWe're concerned about your overdue post surgery appointment. Please contact us ..."
+  },
+  {
+    "timestamp": "2026-09-24T16:07:59.558527",
+    "event_type": "agent_decision",
+    "patient_id": "A00192",
+    "patient_name": "Nurul Ain Binte Rashid",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 167,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Nurul Ain Binte Rashid (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:07:59.574613",
+    "event_type": "communication",
+    "patient_id": "A00192",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Nurul Ain Binte Rashid,\n\nWe're concerned about your overdue periodontal maintenance appointmen..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:02.033080",
+    "event_type": "agent_decision",
+    "patient_id": "007-ZZ",
+    "patient_name": "Rajan s/o Pillai",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 150,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Rajan s/o Pillai (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:02.053081",
+    "event_type": "communication",
+    "patient_id": "007-ZZ",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Rajan s/o Pillai,\n\nWe're concerned about your overdue cavity treatment appointment. Please con..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:04.619734",
+    "event_type": "agent_decision",
+    "patient_id": "P001",
+    "patient_name": "Sarah Johnson",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 69,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sarah Johnson (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:04.633167",
+    "event_type": "communication",
+    "patient_id": "P001",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sarah Johnson,\n\nWe're concerned about your overdue post surgery appointment. Please contact us..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:06.700177",
+    "event_type": "agent_decision",
+    "patient_id": "P012",
+    "patient_name": "Thomas Lee",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 60,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Thomas Lee (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:06.703258",
+    "event_type": "communication",
+    "patient_id": "P012",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Thomas Lee,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please co..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:09.152522",
+    "event_type": "agent_decision",
+    "patient_id": "P002",
+    "patient_name": "Michael Chen",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 36,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Michael Chen (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:09.158616",
+    "event_type": "communication",
+    "patient_id": "P002",
+    "channel": "whatsapp",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Michael Chen,\n\nWe're concerned about your overdue root canal followup appointment. Please cont..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:11.060196",
+    "event_type": "agent_decision",
+    "patient_id": "C-0044",
+    "patient_name": "Ahmad Faris Bin Zulkifli",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 35,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Ahmad Faris Bin Zulkifli (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:11.064226",
+    "event_type": "communication",
+    "patient_id": "C-0044",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Ahmad Faris Bin Zulkifli,\n\nWe're concerned about your overdue post surgery appointment. Please..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:14.029515",
+    "event_type": "agent_decision",
+    "patient_id": "P003",
+    "patient_name": "Emily Rodriguez",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 25,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Emily Rodriguez (Urgency: critical, Status: pending, Decided by: llm)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:14.034022",
+    "event_type": "communication",
+    "patient_id": "P003",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Emily Rodriguez,\n\nWe're concerned about your overdue cavity treatment appointment. Please cont..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:14.286668",
+    "event_type": "agent_decision",
+    "patient_id": "P009",
+    "patient_name": "Maria Garcia",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 24,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Maria Garcia (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:14.291600",
+    "event_type": "communication",
+    "patient_id": "P009",
+    "channel": "phone_call",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Maria Garcia,\n\nWe're concerned about your overdue post surgery appointment. Please contact us ..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:14.809659",
+    "event_type": "agent_decision",
+    "patient_id": "P99012",
+    "patient_name": "Priya Subramaniam",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 24,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Priya Subramaniam (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:14.818658",
+    "event_type": "communication",
+    "patient_id": "P99012",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Priya Subramaniam,\n\nWe're concerned about your overdue orthodontic adjustment appointment. Ple..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.123899",
+    "event_type": "agent_decision",
+    "patient_id": "P005",
+    "patient_name": "Jennifer Taylor",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 20,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Jennifer Taylor (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.128898",
+    "event_type": "communication",
+    "patient_id": "P005",
+    "channel": "whatsapp",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Jennifer Taylor,\n\nWe're concerned about your overdue periodontal maintenance appointment. Plea..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.404930",
+    "event_type": "agent_decision",
+    "patient_id": "P008",
+    "patient_name": "James Wilson",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 20,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for James Wilson (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.409930",
+    "event_type": "communication",
+    "patient_id": "P008",
+    "channel": "whatsapp",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello James Wilson,\n\nWe're concerned about your overdue cleaning appointment. Please contact us at y..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.690093",
+    "event_type": "agent_decision",
+    "patient_id": "P007",
+    "patient_name": "Lisa Martinez",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 15,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Lisa Martinez (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.694390",
+    "event_type": "communication",
+    "patient_id": "P007",
+    "channel": "email",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Lisa Martinez,\n\nWe're concerned about your overdue checkup appointment. Please contact us at y..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.980860",
+    "event_type": "agent_decision",
+    "patient_id": "P004",
+    "patient_name": "David Kim",
+    "case_status": "pending",
+    "urgency": "high",
+    "days_overdue": 10,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for David Kim (Urgency: high, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:15.985861",
+    "event_type": "communication",
+    "patient_id": "P004",
+    "channel": "email",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello David Kim,\n\nWe noticed you're overdue for your orthodontic adjustment appointment. To maintain..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:16.252189",
+    "event_type": "agent_decision",
+    "patient_id": "P006",
+    "patient_name": "Robert Anderson",
+    "case_status": "pending",
+    "urgency": "high",
+    "days_overdue": 10,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Robert Anderson (Urgency: high, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:16.257188",
+    "event_type": "communication",
+    "patient_id": "P006",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Robert Anderson,\n\nWe noticed you're overdue for your cleaning appointment. To maintain your de..."
+  },
+  {
+    "timestamp": "2026-09-24T16:08:16.547636",
+    "event_type": "agent_decision",
+    "patient_id": "P010",
+    "patient_name": "Kevin Brown",
+    "case_status": "pending",
+    "urgency": "medium",
+    "days_overdue": 7,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Kevin Brown (Urgency: medium, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:08:16.552635",
+    "event_type": "communication",
+    "patient_id": "P010",
+    "channel": "email",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Kevin Brown,\n\nIt's time for your orthodontic adjustment appointment! We'd love to see you soon..."
+  },
+  {
+    "timestamp": "2026-09-24T16:15:15.464333",
+    "event_type": "agent_decision",
+    "patient_id": "MR-3310",
+    "patient_name": "Lim Kok Weng",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 210,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Lim Kok Weng (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:15.473333",
+    "event_type": "agent_decision",
+    "patient_id": "A00192",
+    "patient_name": "Nurul Ain Binte Rashid",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 167,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Nurul Ain Binte Rashid (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:15.481333",
+    "event_type": "agent_decision",
+    "patient_id": "007-ZZ",
+    "patient_name": "Rajan s/o Pillai",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 150,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Rajan s/o Pillai (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.003292",
+    "event_type": "agent_decision",
+    "patient_id": "PX3005",
+    "patient_name": "Sophie Taylor",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 146,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Sophie Taylor (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.020322",
+    "event_type": "communication",
+    "patient_id": "PX3005",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Sophie Taylor,\n\nWe're concerned about your overdue post surgery appointment. Please contact us..."
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.036839",
+    "event_type": "agent_decision",
+    "patient_id": "P001",
+    "patient_name": "Sarah Johnson",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 69,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Sarah Johnson (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.051838",
+    "event_type": "agent_decision",
+    "patient_id": "P012",
+    "patient_name": "Thomas Lee",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 60,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Thomas Lee (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.064837",
+    "event_type": "agent_decision",
+    "patient_id": "P002",
+    "patient_name": "Michael Chen",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 36,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Michael Chen (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.080841",
+    "event_type": "agent_decision",
+    "patient_id": "C-0044",
+    "patient_name": "Ahmad Faris Bin Zulkifli",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 35,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Ahmad Faris Bin Zulkifli (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.095841",
+    "event_type": "agent_decision",
+    "patient_id": "P003",
+    "patient_name": "Emily Rodriguez",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 25,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Emily Rodriguez (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.641650",
+    "event_type": "agent_decision",
+    "patient_id": "PX3004",
+    "patient_name": "Thomas Green",
+    "case_status": "pending",
+    "urgency": "critical",
+    "days_overdue": 25,
+    "action_taken": "send_reminder",
+    "rationale": "Action: send_reminder for Thomas Green (Urgency: critical, Status: pending, Decided by: llm-error)",
+    "reminder_count": 0,
+    "conversation_length": 0,
+    "additional_context": {
+      "decision_source": "llm-error",
+      "alternatives_considered": [
+        "do_nothing"
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:16.815938",
+    "event_type": "communication",
+    "patient_id": "PX3004",
+    "channel": "sms",
+    "direction": "outbound",
+    "success": true,
+    "message_preview": "Hello Thomas Green,\n\nWe're concerned about your overdue periodontal maintenance appointment. Please ..."
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.001814",
+    "event_type": "agent_decision",
+    "patient_id": "P009",
+    "patient_name": "Maria Garcia",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 24,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Maria Garcia (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.148777",
+    "event_type": "agent_decision",
+    "patient_id": "P99012",
+    "patient_name": "Priya Subramaniam",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 24,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Priya Subramaniam (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.536924",
+    "event_type": "agent_decision",
+    "patient_id": "P005",
+    "patient_name": "Jennifer Taylor",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 20,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Jennifer Taylor (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.595830",
+    "event_type": "agent_decision",
+    "patient_id": "P008",
+    "patient_name": "James Wilson",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 20,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for James Wilson (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.606570",
+    "event_type": "agent_decision",
+    "patient_id": "P007",
+    "patient_name": "Lisa Martinez",
+    "case_status": "message_sent",
+    "urgency": "critical",
+    "days_overdue": 15,
+    "action_taken": "escalate_to_staff",
+    "rationale": "Action: escalate_to_staff for Lisa Martinez (Urgency: critical, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.617031",
+    "event_type": "agent_decision",
+    "patient_id": "P004",
+    "patient_name": "David Kim",
+    "case_status": "message_sent",
+    "urgency": "high",
+    "days_overdue": 10,
+    "action_taken": "do_nothing",
+    "rationale": "Action: do_nothing for David Kim (Urgency: high, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.625546",
+    "event_type": "agent_decision",
+    "patient_id": "P006",
+    "patient_name": "Robert Anderson",
+    "case_status": "message_sent",
+    "urgency": "high",
+    "days_overdue": 10,
+    "action_taken": "do_nothing",
+    "rationale": "Action: do_nothing for Robert Anderson (Urgency: high, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  },
+  {
+    "timestamp": "2026-09-24T16:15:17.635685",
+    "event_type": "agent_decision",
+    "patient_id": "P010",
+    "patient_name": "Kevin Brown",
+    "case_status": "message_sent",
+    "urgency": "medium",
+    "days_overdue": 7,
+    "action_taken": "do_nothing",
+    "rationale": "Action: do_nothing for Kevin Brown (Urgency: medium, Status: message_sent, Decided by: rules)",
+    "reminder_count": 1,
+    "conversation_length": 2,
+    "additional_context": {
+      "decision_source": "rules",
+      "alternatives_considered": []
+    }
+  }
+]

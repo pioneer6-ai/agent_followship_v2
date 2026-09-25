@@ -1,0 +1,24 @@
+{
+  "general_thresholds": {
+    "medium": 3,
+    "high": 10,
+    "critical": 12
+  },
+  "treatment_overrides": {},
+  "reminder_interval_days": 7,
+  "missed_appointment_rules": {
+    "enabled": false,
+    "count_threshold": 3,
+    "min_urgency_level": "HIGH"
+  },
+  "unanswered_reminder_urgency_rules": {
+    "enabled": false,
+    "count_threshold": 2,
+    "min_urgency_level": "HIGH"
+  },
+  "escalation_rules": {
+    "enabled": true,
+    "consecutive_unanswered_threshold": 3
+  },
+  "use_custom_rules": true
+}

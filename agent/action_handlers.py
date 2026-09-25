@@ -34,11 +34,7 @@ class AppointmentScheduler:
         self.calendar = calendar
 
     def try_book(
-        self,
-        case: FollowUpCase,
-        preferred_date: Optional[date] = None,
-        after: Optional[date] = None,
-        to_date: Optional[date] = None,
+        self, case: FollowUpCase, preferred_date: Optional[date] = None
     ) -> tuple[bool, Optional[date]]:
         """
         Attempt to book an appointment for a patient.
@@ -49,13 +45,6 @@ class AppointmentScheduler:
         Args:
             case: Follow-up case for the patient
             preferred_date: Patient's preferred appointment date (optional)
-            after: Reference date to search from when no preferred_date is
-                given. Callers should pass their own clock/today value here;
-                defaults to date.today() only when omitted, so existing
-                callers keep working unchanged.
-            to_date: Optional upper bound on the search window (e.g. the
-                clinic's configured booking window), used only when no
-                preferred_date is given.
 
         Returns:
             Tuple of (success boolean, booked date if successful)
@@ -76,10 +65,7 @@ class AppointmentScheduler:
         else:
             # Find next available slot
             available_slots = self.calendar.find_available_slots(
-                treatment_type,
-                after=after or date.today(),
-                limit=1,
-                to_date=to_date,
+                treatment_type, after=date.today(), limit=1
             )
 
             if available_slots:
@@ -133,11 +119,7 @@ class AppointmentScheduler:
             return False
 
     def find_available_slots(
-        self,
-        case: FollowUpCase,
-        after: date,
-        limit: int = 5,
-        to_date: Optional[date] = None,
+        self, case: FollowUpCase, after: date, limit: int = 5
     ) -> list[date]:
         """
         Find available appointment slots for a patient.
@@ -146,14 +128,12 @@ class AppointmentScheduler:
             case: Follow-up case
             after: Find slots after this date
             limit: Maximum number of slots to return
-            to_date: Optional upper bound on the search window (e.g. the
-                clinic's configured booking window).
 
         Returns:
             List of available dates
         """
         return self.calendar.find_available_slots(
-            case.patient.treatment_type, after=after, limit=limit, to_date=to_date
+            case.patient.treatment_type, after=after, limit=limit
         )
 
 

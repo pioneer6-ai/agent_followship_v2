@@ -56,7 +56,6 @@ CLOSED_STATUSES = (
     CaseStatus.BOOKED,
     CaseStatus.DECLINED,
     CaseStatus.ESCALATED,
-    CaseStatus.OPTED_OUT,
 )
 
 #: Human-readable purpose of each action, shown to the model.
@@ -68,8 +67,6 @@ ACTION_DESCRIPTIONS: Dict[AgentAction, str] = {
     AgentAction.ESCALATE_TO_STAFF: "Hand the case to a human; the agent cannot resolve it",
     AgentAction.MARK_DECLINED: "Record that the patient declined follow-up",
     AgentAction.DO_NOTHING: "Take no action now",
-    AgentAction.RECORD_OPT_OUT: "Record that the patient asked not to be contacted again",
-    AgentAction.REQUEST_CLARIFICATION: "Ask the patient a clarifying question before proceeding",
 }
 
 
