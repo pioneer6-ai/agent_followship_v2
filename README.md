@@ -1064,6 +1064,11 @@ endpoints below are relative to that. `GET /` serves the dashboard page itself.
 | GET | `/staff/calendar` | Staff calendar management UI |
 | GET | `/staff/login` | Staff login page |
 | GET | `/staff/accounts` | Staff account management page (admin only) |
+| GET | `/staff/outreach` | Staff confirmation page for patient-facing messages |
+| GET | `/api/outreach/pending` | Patient messages waiting for staff confirmation |
+| POST | `/api/outreach/update` | Edit a pending patient message before confirmation |
+| POST | `/api/outreach/confirm` | Send only the selected patient messages after staff confirmation |
+| POST | `/api/outreach/cancel` | Cancel only the selected pending patient messages |
 | POST | `/api/calendar/login` | Staff/calendar login endpoint |
 | POST | `/api/calendar/logout` | Logout endpoint |
 | GET | `/api/calendar/session` | Get current session info |

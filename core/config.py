@@ -53,6 +53,14 @@ class ClinicPolicyConfig:
             patient portal's "none of these times work" flow). Distinct
             from `booking_window_days`: this governs the re-check cadence,
             not how far ahead slots may be offered.
+        no_show_grace_period_minutes: How long after a CONFIRMED
+            appointment's scheduled datetime the clinic waits before
+            treating it as a no-show. A patient is only ever classified
+            NO_SHOW once ``now >= appointment_datetime + this many
+            minutes`` - this is a datetime comparison against the clinic's
+            current instant (via Clock.now()), never a date-only
+            comparison against "today". See
+            SchedulingDatabase.get_overdue_confirmed_appointment_for_patient.
     """
     working_hours: tuple[int, int] = (9, 18)  # 9 AM to 6 PM
     max_reminders_before_escalation: int = 3
@@ -63,6 +71,7 @@ class ClinicPolicyConfig:
     clinic_timezone: str = "Asia/Singapore"
     booking_window_days: int = 7
     followup_retry_days: int = 7
+    no_show_grace_period_minutes: int = 30
 
     @classmethod
     def from_env(cls, env: Optional[Mapping[str, str]] = None) -> "ClinicPolicyConfig":
@@ -82,6 +91,7 @@ class ClinicPolicyConfig:
             AGENT_CLINIC_TIMEZONE                  (str, default "Asia/Singapore")
             AGENT_BOOKING_WINDOW_DAYS              (int, default 7)
             AGENT_FOLLOWUP_RETRY_DAYS              (int, default 7)
+            AGENT_NO_SHOW_GRACE_PERIOD_MINUTES     (int, default 30)
 
         Args:
             env: Mapping to read instead of ``os.environ`` (tests).
@@ -126,5 +136,10 @@ class ClinicPolicyConfig:
                 source,
                 "AGENT_FOLLOWUP_RETRY_DAYS",
                 defaults.followup_retry_days,
+            ),
+            no_show_grace_period_minutes=_int(
+                source,
+                "AGENT_NO_SHOW_GRACE_PERIOD_MINUTES",
+                defaults.no_show_grace_period_minutes,
             ),
         )

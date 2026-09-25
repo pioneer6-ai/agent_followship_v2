@@ -76,6 +76,14 @@ class TestDailyCycleAuthorization:
         with contextlib.redirect_stdout(io.StringIO()):
             agent.run_daily_cycle(FIXED_TODAY)
 
+        # The reminder is queued for staff confirmation rather than sent
+        # immediately (see agent/orchestrator.py's _queue_outbound_message);
+        # confirming it is what actually delivers it and advances the case
+        # to MESSAGE_SENT (see confirm_pending_sends).
+        pending = agent.get_pending_sends()
+        assert pending, "expected the reminder to have been queued"
+        agent.confirm_pending_sends([item["send_id"] for item in pending])
+
         case = agent.get_case_by_patient_id("P1")
         assert case.status == CaseStatus.MESSAGE_SENT
 
@@ -116,6 +124,17 @@ class TestIncomingReplyAuthorization:
         # and a clarifying question (not a booking confirmation) must be
         # the message actually sent to the patient.
         assert case.status != CaseStatus.BOOKED
+
+        # The clarifying reply is queued for staff confirmation rather than
+        # sent immediately (see agent/orchestrator.py's
+        # _queue_outbound_message); confirm it here to exercise the real
+        # queue -> staff confirm -> actual send workflow before asserting
+        # on the delivered message.
+        pending = agent.get_pending_sends()
+        assert pending, "expected the clarification reply to have been queued"
+        agent.confirm_pending_sends([item["send_id"] for item in pending])
+
+        case = agent.get_case_by_patient_id("P1")
         sent_messages = [entry for entry in case.conversation_log if entry.startswith("Agent:")]
         assert sent_messages, "expected a response to have been sent"
         assert "confirm" in sent_messages[-1].lower()
@@ -310,6 +329,12 @@ class TestDenyAndNoOpSafetyInvariant:
     def test_normal_non_denied_reply_still_sends_expected_response(self, agent_env):
         """Sanity check: the fix must not suppress legitimate sends."""
         agent, backend = self._seeded_agent_with_backend(agent_env)
+        # The seeding daily cycle's own reminder is also only queued, not
+        # sent (see agent/orchestrator.py's _queue_outbound_message);
+        # confirm it now so it doesn't get counted below as part of this
+        # test's own reply-confirmation send.
+        for pending in agent.get_pending_sends():
+            agent.confirm_pending_sends([pending["send_id"]])
         sends_before = len(backend.sent)
 
         with contextlib.redirect_stdout(io.StringIO()):
@@ -317,6 +342,15 @@ class TestDenyAndNoOpSafetyInvariant:
 
         case = agent.get_case_by_patient_id("P1")
         assert case.status == CaseStatus.BOOKED
+
+        # The booking-confirmation reply is queued for staff confirmation
+        # rather than sent immediately; confirming it is what actually
+        # invokes the backend (see confirm_pending_sends in
+        # agent/orchestrator.py).
+        pending = agent.get_pending_sends()
+        assert pending, "expected the booking confirmation to have been queued"
+        agent.confirm_pending_sends([item["send_id"] for item in pending])
+
         assert len(backend.sent) == sends_before + 1
         assert "booked you for" in backend.sent[-1]["message"].lower()
 
@@ -400,6 +434,12 @@ class TestNextFollowupAtCarriesForwardAcrossCycles:
         # Day 7: now actionable.
         with contextlib.redirect_stdout(io.StringIO()):
             agent.run_daily_cycle(day7)
+        case = agent.get_case_by_patient_id("P1")
+        # The reminder is queued for staff confirmation rather than sent
+        # immediately; confirm it so reminder_count reflects the actual
+        # send, exactly as a real staff outreach confirmation would.
+        for pending in agent.get_pending_sends():
+            agent.confirm_pending_sends([pending["send_id"]])
         case = agent.get_case_by_patient_id("P1")
         assert agent.trigger_service.is_actionable(case) is True or case.reminder_count > reminders_at_day0, (
             "Day 7: case must become actionable and be acted on"

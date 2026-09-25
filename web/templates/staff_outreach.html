@@ -30,6 +30,8 @@
         .preview:read-only { background: #eceff1; color: #455a64; cursor: not-allowed; }
         .save-message { margin: 8px 0 0 30px; background: #546e7a; color: white; padding: 7px 11px; font-size: 12px; }
         .save-message:hover { background: #37474f; }
+        .email-preview { white-space: pre-wrap; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 13px; margin: 14px 0 0 30px; line-height: 1.45; font: inherit; color: #455a64; }
+        .email-preview a { color: #1565c0; font-weight: 600; }
         .empty { text-align: center; background: white; padding: 45px; border-radius: 8px; color: #607d8b; }
         #status { margin: 10px 0; min-height: 20px; }
         .error { color: #c62828; }
@@ -93,6 +95,34 @@
         return node;
     }
 
+    // Builds a read-only preview of a no_show message, turning its existing
+    // "Reschedule My Appointment: /patient/<token>" line (see
+    // agent/notifications.py's compose()) into a real clickable link.
+    // Reuses the URL already present in the message - never issues or
+    // looks up a new token. Falls back to plain text if that line is not
+    // found, so nothing breaks if the message was hand-edited.
+    function renderNoShowPreview(message) {
+        const node = document.createElement('div');
+        node.className = 'email-preview';
+        const text = message || '';
+        const lineMatch = text.match(/^(Reschedule My Appointment:\s*)(\S+)(.*)$/m);
+        if (!lineMatch) {
+            node.textContent = text;
+            return node;
+        }
+        const [fullLine, label, url] = lineMatch;
+        const lineStart = text.indexOf(fullLine);
+        node.appendChild(document.createTextNode(text.slice(0, lineStart)));
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Reschedule My Appointment';
+        node.appendChild(link);
+        node.appendChild(document.createTextNode(text.slice(lineStart + label.length + url.length)));
+        return node;
+    }
+
     function setUrgencyFilter(value) {
         document.getElementById('urgencyFilter').value = value;
         document.getElementById('selectAll').checked = true;
@@ -140,23 +170,34 @@
             top.appendChild(details);
             card.appendChild(top);
 
+            const isNoShow = item.context === 'no_show';
+
             const editor = document.createElement('textarea');
             editor.className = 'preview';
             editor.value = item.message || '';
             editor.readOnly = true;
             editor.setAttribute('aria-label', `Message for ${item.patient_name}`);
+            editor.style.display = isNoShow ? 'none' : '';
             card.appendChild(editor);
+
+            // For no_show outreach, default to a read-only preview with the
+            // reschedule line rendered as a real link. "Edit message" swaps
+            // to the same textarea editor every other message type uses.
+            const noShowPreview = isNoShow ? renderNoShowPreview(item.message) : null;
+            if (noShowPreview) card.appendChild(noShowPreview);
 
             const saveButton = document.createElement('button');
             saveButton.className = 'save-message';
             saveButton.textContent = 'Edit message';
             saveButton.addEventListener('click', () => {
                 if (editor.readOnly) {
+                    if (noShowPreview) noShowPreview.style.display = 'none';
+                    editor.style.display = '';
                     editor.readOnly = false;
                     saveButton.textContent = 'Save message edit';
                     editor.focus();
                 } else {
-                    updateMessage(item.send_id, editor.value, saveButton, editor);
+                    updateMessage(item.send_id, editor.value, saveButton, editor, noShowPreview);
                 }
             });
             card.appendChild(saveButton);
@@ -164,7 +205,7 @@
         });
     }
 
-    async function updateMessage(sendId, message, button, editor) {
+    async function updateMessage(sendId, message, button, editor, noShowPreview) {
         if (!message.trim()) {
             setStatus('Message cannot be empty.', true);
             return;
@@ -183,6 +224,14 @@
             if (item) item.message = data.message.message;
             editor.value = data.message.message;
             editor.readOnly = true;
+            if (noShowPreview) {
+                // Rebuild the clickable preview from the just-saved text and
+                // go back to showing it instead of the raw textarea.
+                const refreshed = renderNoShowPreview(data.message.message);
+                noShowPreview.replaceChildren(...refreshed.childNodes);
+                noShowPreview.style.display = '';
+                editor.style.display = 'none';
+            }
             button.textContent = 'Saved';
             setStatus('Message updated and locked. It is still pending and has not been sent.');
             window.setTimeout(() => { button.textContent = 'Edit message'; }, 1500);

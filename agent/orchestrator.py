@@ -57,6 +57,17 @@ CLOSED_STATUSES = (
     CaseStatus.OPTED_OUT,
 )
 
+#: Outreach queue ``context`` values that all originate from the
+#: SEND_REMINDER action (see its branch in _execute_action). The context
+#: is now the actual composed message_type ("initial", "urgent", or
+#: "no_show" - see agent/notifications.py's compose()) instead of the
+#: generic "reminder" label, so the staff outreach queue and any external
+#: consumer can tell a no-show follow-up apart from a routine recall. Every
+#: value here must still be treated as a reminder for case-state purposes
+#: (MESSAGE_SENT, reminder_count, last_contacted) in
+#: _record_confirmed_delivery and confirm_pending_sends below.
+_REMINDER_CONTEXTS = frozenset({"reminder", "initial", "urgent", "no_show"})
+
 
 class FollowUpAgentOrchestrator:
     """
@@ -312,7 +323,7 @@ class FollowUpAgentOrchestrator:
             )
             if outcome.success:
                 self._record_confirmed_delivery(case, item, outcome)
-                if item["context"] == "reminder":
+                if item["context"] in _REMINDER_CONTEXTS:
                     self.data_store.update_last_contacted(
                         item["patient_id"], date.fromisoformat(item["scheduled_for"])
                     )
@@ -343,7 +354,15 @@ class FollowUpAgentOrchestrator:
     ) -> None:
         """Apply case state changes only after a confirmed delivery succeeds."""
         context = item["context"]
-        if context == "reminder":
+        # "reminder" is the legacy label; SEND_REMINDER now queues with
+        # context set to the actual composed message_type ("initial",
+        # "urgent", or "no_show" - see agent/orchestrator.py's
+        # SEND_REMINDER branch and agent/notifications.py's compose()).
+        # All of these are still a reminder outreach for case-state
+        # purposes: the case must still advance to MESSAGE_SENT and the
+        # reminder counter/last-contacted date must still move, regardless
+        # of which specific message_type was actually sent.
+        if context in _REMINDER_CONTEXTS:
             today = date.fromisoformat(item["scheduled_for"])
             case.status = CaseStatus.MESSAGE_SENT
             case.last_contacted = today
@@ -1010,14 +1029,34 @@ class FollowUpAgentOrchestrator:
             print(f"   🧠 {patient.name}: model chose {action.value} "
                   f"({decision.rationale})")
         if action == AgentAction.SEND_REMINDER:
-            # Compose personalized message
-            message_type = "urgent" if case.urgency.value == "critical" else "initial"
+            # Compose personalized message. "no_show" takes priority over
+            # urgency-based selection: it is only ever chosen when this
+            # case's patient has a REAL, current missed appointment - a
+            # CONFIRMED booking whose scheduled datetime plus the clinic's
+            # configured grace period has already passed (a DATETIME
+            # comparison via self.clock.now(), never a date-only
+            # comparison - see SchedulingDatabaseCalendarAdapter.
+            # has_missed_appointment) - never merely because
+            # PatientRecord.no_show_history > 0 (that field is historical
+            # and must not affect today's message content). Calendars
+            # that don't implement this check (e.g. MockCalendarIntegration
+            # in tests) fall back to the existing urgency-only selection
+            # unchanged.
+            has_missed_appointment = getattr(self.calendar, "has_missed_appointment", None)
+            if has_missed_appointment is not None and has_missed_appointment(
+                case.patient.patient_id,
+                self.clock.now(),
+                grace_period_minutes=self.policy.no_show_grace_period_minutes,
+            ):
+                message_type = "no_show"
+            else:
+                message_type = "urgent" if case.urgency.value == "critical" else "initial"
             message = self.message_composer.compose(case, message_type)
 
             self._queue_outbound_message(
                 case,
                 message,
-                context="reminder",
+                context=message_type,
                 today=today,
                 action=action,
             )
