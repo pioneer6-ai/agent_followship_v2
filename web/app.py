@@ -1503,38 +1503,53 @@ def preview_urgency_config():
 
 if __name__ == '__main__':
     # Initialize with sample data
-    from utils.sample_data import initialize_sample_data
-    initialize_sample_data(data_store, calendar)
-
-    # Run one cycle so the sample patients have active cases the portal can
-    # resolve tokens against (mirrors how the dashboard's "Run Cycle" button
-    # populates agent.active_cases).
-    agent.run_daily_cycle(date.today())
-
-    # Mint one demo portal token so there's a ready-to-open URL, without
-    # requiring the staff dashboard's "issue portal link" call first.
-    demo_patients = data_store.get_all_active_patients()
-    demo_portal_url = None
-    if demo_patients:
-        demo_token = patient_portal_tokens.issue_token(demo_patients[0].patient_id)
-        demo_portal_url = f"/patient/{demo_token}"
-
     port = 8080  # Using port 8080 to avoid conflicts with AirPlay Receiver
-    
-    print("\n" + "="*70)
-    print("🏥 Patient Follow-up Agent - Web Dashboard")
-    print("="*70)
-    print(f"\n📊 Dashboard: http://localhost:{port}")
-    if demo_portal_url:
-        print(f"🧑‍⚕️ Patient Portal (demo token): http://localhost:{port}{demo_portal_url}")
-    print("📡 API Endpoints:")
-    print("   GET  /api/status          - Agent statistics")
-    print("   GET  /api/cases           - All active cases")
-    print("   GET  /api/escalations     - Escalated cases")
-    print("   POST /api/run-cycle       - Trigger daily cycle")
-    print("   POST /api/simulate-reply  - Simulate patient reply")
-    print("   GET  /api/audit-logs      - View audit logs")
-    print("   POST /api/patients/<id>/portal-link - Issue a patient portal link")
-    print("\n" + "="*70 + "\n")
-    
+
+    # Flask's debug reloader (app.run(debug=True) below) re-executes this
+    # entire module in a second, separate process to watch for file changes.
+    # Without this guard, sample-data seeding, the daily cycle (which
+    # "sends" a reminder to every overdue patient - see the [sms]/[email]/
+    # etc. prints), and the demo token mint would all run twice per
+    # `python web/app.py` invocation: once in the reloader's watcher
+    # process (which never serves requests), once in the actual worker
+    # process. Werkzeug sets WERKZEUG_RUN_MAIN=true ONLY in that second,
+    # real worker process; it is unset in the watcher process, and unset
+    # entirely if the reloader is off (e.g. debug=False). So "run the
+    # one-time startup work" means: skip it only when the reloader is on
+    # AND this is the watcher process (WERKZEUG_RUN_MAIN not yet "true").
+    is_reloader_parent_process = os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
+
+    if not is_reloader_parent_process:
+        from utils.sample_data import initialize_sample_data
+        initialize_sample_data(data_store, calendar)
+
+        # Run one cycle so the sample patients have active cases the portal can
+        # resolve tokens against (mirrors how the dashboard's "Run Cycle" button
+        # populates agent.active_cases).
+        agent.run_daily_cycle(date.today())
+
+        # Mint one demo portal token so there's a ready-to-open URL, without
+        # requiring the staff dashboard's "issue portal link" call first.
+        demo_patients = data_store.get_all_active_patients()
+        demo_portal_url = None
+        if demo_patients:
+            demo_token = patient_portal_tokens.issue_token(demo_patients[0].patient_id)
+            demo_portal_url = f"/patient/{demo_token}"
+
+        print("\n" + "="*70)
+        print("🏥 Patient Follow-up Agent - Web Dashboard")
+        print("="*70)
+        print(f"\n📊 Dashboard: http://localhost:{port}")
+        if demo_portal_url:
+            print(f"🧑‍⚕️ Patient Portal (demo token): http://localhost:{port}{demo_portal_url}")
+        print("📡 API Endpoints:")
+        print("   GET  /api/status          - Agent statistics")
+        print("   GET  /api/cases           - All active cases")
+        print("   GET  /api/escalations     - Escalated cases")
+        print("   POST /api/run-cycle       - Trigger daily cycle")
+        print("   POST /api/simulate-reply  - Simulate patient reply")
+        print("   GET  /api/audit-logs      - View audit logs")
+        print("   POST /api/patients/<id>/portal-link - Issue a patient portal link")
+        print("\n" + "="*70 + "\n")
+
     app.run(debug=True, host='0.0.0.0', port=port)
