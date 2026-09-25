@@ -10,8 +10,10 @@ resolution or escalation.
 """
 
 import os
-from datetime import date, timedelta
-from typing import Dict, List, Optional
+from datetime import date, datetime, timedelta, timezone
+from threading import Lock
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from core.clock import Clock, SystemClock
 from core.models import FollowUpCase, CaseStatus, ContactChannel
@@ -148,6 +150,204 @@ class FollowUpAgentOrchestrator:
 
         # Active cases being managed by the agent
         self.active_cases: dict[str, FollowUpCase] = {}
+
+        # Patient-facing outbound messages are queued until a staff member
+        # explicitly confirms the selected send(s) in the outreach page.
+        # This is deliberately in memory because the patient store is also
+        # in-memory in this demo; each queue item is still fully inspectable.
+        self._pending_sends: Dict[str, Dict[str, Any]] = {}
+        self._pending_sends_lock = Lock()
+
+    def _queue_outbound_message(
+        self,
+        case: FollowUpCase,
+        message: str,
+        *,
+        context: str,
+        today: date,
+        action: AgentAction,
+    ) -> Dict[str, Any]:
+        """Queue a patient message without calling any delivery backend."""
+        patient = case.patient
+        dedupe_key = "|".join(
+            [patient.patient_id, case.episode_id, action.value, context, message]
+        )
+
+        with self._pending_sends_lock:
+            for item in self._pending_sends.values():
+                if item["status"] in {"pending", "sending"} and item["dedupe_key"] == dedupe_key:
+                    return dict(item)
+
+            channels = self._deliverable_order(case)
+            primary_channel = channels[0] if channels else patient.preferred_channel
+            channel = self.notification_channels.get(primary_channel)
+            recipient = ""
+            if channel is not None:
+                recipient = channel._recipient_for(patient)
+
+            send_id = uuid4().hex
+            item = {
+                "send_id": send_id,
+                "patient_id": patient.patient_id,
+                "patient_name": patient.name,
+                "episode_id": case.episode_id,
+                "action": action.value,
+                "context": context,
+                "channel": primary_channel.value,
+                "recipient": recipient,
+                "available_channels": [channel.value for channel in channels],
+                "message": message,
+                "subject": "Dental Appointment Reminder",
+                "urgency": case.urgency.value,
+                "days_overdue": case.days_overdue,
+                "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "scheduled_for": today.isoformat(),
+                "status": "pending",
+                "dedupe_key": dedupe_key,
+            }
+            self._pending_sends[send_id] = item
+
+        case.add_to_log(
+            f"Queued {context} for staff confirmation; message not sent"
+        )
+        print(
+            f"   ⏸️  Queued {context} for {patient.name}; "
+            f"awaiting staff confirmation ({send_id})"
+        )
+        return dict(item)
+
+    def get_pending_sends(self) -> List[Dict[str, Any]]:
+        """Return pending patient messages safe for the staff confirmation UI."""
+        with self._pending_sends_lock:
+            return [
+                {key: value for key, value in item.items() if key != "dedupe_key"}
+                for item in self._pending_sends.values()
+                if item["status"] == "pending"
+            ]
+
+    def update_pending_send(
+        self,
+        send_id: str,
+        message: str,
+        edited_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Update the body of a pending message without sending it."""
+        cleaned_message = str(message or "").strip()
+        if not cleaned_message:
+            return {"send_id": send_id, "status": "invalid", "error": "Message cannot be empty"}
+        if len(cleaned_message) > 4000:
+            return {"send_id": send_id, "status": "invalid", "error": "Message cannot exceed 4000 characters"}
+
+        with self._pending_sends_lock:
+            item = self._pending_sends.get(send_id)
+            if item is None:
+                return {"send_id": send_id, "status": "not_found"}
+            if item["status"] != "pending":
+                return {"send_id": send_id, "status": item["status"]}
+
+            item["message"] = cleaned_message
+            item["edited_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            if edited_by:
+                item["edited_by"] = edited_by
+            return {
+                key: value for key, value in item.items() if key != "dedupe_key"
+            }
+
+    def cancel_pending_sends(self, send_ids: List[str]) -> List[Dict[str, Any]]:
+        """Cancel selected pending messages without transmitting anything."""
+        results = []
+        with self._pending_sends_lock:
+            for send_id in send_ids:
+                item = self._pending_sends.get(send_id)
+                if item is None:
+                    results.append({"send_id": send_id, "status": "not_found"})
+                elif item["status"] != "pending":
+                    results.append({"send_id": send_id, "status": item["status"]})
+                else:
+                    item["status"] = "cancelled"
+                    results.append({"send_id": send_id, "status": "cancelled"})
+        return results
+
+    def confirm_pending_sends(self, send_ids: List[str]) -> List[Dict[str, Any]]:
+        """Deliver selected messages after atomically claiming each pending item."""
+        results = []
+        for send_id in send_ids:
+            with self._pending_sends_lock:
+                item = self._pending_sends.get(send_id)
+                if item is None:
+                    results.append({"send_id": send_id, "status": "not_found"})
+                    continue
+                if item["status"] != "pending":
+                    results.append({"send_id": send_id, "status": item["status"]})
+                    continue
+                item["status"] = "sending"
+
+            case = self.active_cases.get(item["patient_id"])
+            if case is None:
+                with self._pending_sends_lock:
+                    item["status"] = "failed"
+                    item["error"] = "The patient case is no longer active"
+                results.append({"send_id": send_id, "status": "failed", "error": item["error"]})
+                continue
+
+            outcome = self._deliver_with_fallback(
+                case,
+                item["message"],
+                context=item["context"],
+                today=date.fromisoformat(item["scheduled_for"]),
+            )
+            if outcome.success:
+                self._record_confirmed_delivery(case, item, outcome)
+                if item["context"] == "reminder":
+                    self.data_store.update_last_contacted(
+                        item["patient_id"], date.fromisoformat(item["scheduled_for"])
+                    )
+                status = "sent"
+                item["recipient"] = outcome.recipient or item["recipient"]
+                item["message_id"] = outcome.message_id
+                item["simulated"] = outcome.simulated
+            else:
+                self._escalate_undeliverable(
+                    case, outcome, date.fromisoformat(item["scheduled_for"])
+                )
+                status = "failed"
+                item["error"] = outcome.error_message or outcome.error_code
+
+            with self._pending_sends_lock:
+                item["status"] = status
+            result = {"send_id": send_id, "status": status}
+            if item.get("error"):
+                result["error"] = item["error"]
+            results.append(result)
+        return results
+
+    @staticmethod
+    def _record_confirmed_delivery(
+        case: FollowUpCase,
+        item: Dict[str, Any],
+        outcome: NotificationOutcome,
+    ) -> None:
+        """Apply case state changes only after a confirmed delivery succeeds."""
+        context = item["context"]
+        if context == "reminder":
+            today = date.fromisoformat(item["scheduled_for"])
+            case.status = CaseStatus.MESSAGE_SENT
+            case.last_contacted = today
+            case.reminder_count += 1
+            case.add_to_log(f"Sent reminder via {outcome.channel.value}")
+        elif context == "slot proposal":
+            case.status = CaseStatus.AWAITING_REPLY
+            case.add_to_log("Proposed appointment slots")
+        elif context == "clarification request":
+            case.add_to_log("Requested clarification on ambiguous consent")
+        elif context == "reply":
+            case.add_to_log(f"Agent: {item['message']}")
+        elif context == "booking confirmation":
+            case.add_to_log(f"Sent booking confirmation via {outcome.channel.value}")
+
+    def get_pending_send_count(self) -> int:
+        """Return the number of patient messages awaiting confirmation."""
+        return len(self.get_pending_sends())
 
     @classmethod
     def with_llm_decisions(
@@ -800,23 +1000,13 @@ class FollowUpAgentOrchestrator:
             message_type = "urgent" if case.urgency.value == "critical" else "initial"
             message = self.message_composer.compose(case, message_type)
 
-            outcome = self._deliver_with_fallback(
-                case, message, context="reminder", today=today
+            self._queue_outbound_message(
+                case,
+                message,
+                context="reminder",
+                today=today,
+                action=action,
             )
-
-            if outcome.success:
-                case.status = CaseStatus.MESSAGE_SENT
-                case.last_contacted = today
-                case.reminder_count += 1
-                case.add_to_log(f"Sent reminder via {outcome.channel.value}")
-                self.data_store.update_last_contacted(patient.patient_id, today)
-
-                print(f"   ✉️  Sent reminder to {patient.name} via "
-                      f"{outcome.channel.value}")
-            else:
-                # Nothing got through. Sending more reminders is pointless, so hand
-                # the case to a human instead of pretending it was handled.
-                self._escalate_undeliverable(case, outcome, today)
         elif action == AgentAction.PROPOSE_SLOT:
             # Find available appointment slots, bounded by the booking window
             booking_deadline = today + timedelta(days=self.policy.booking_window_days)
@@ -830,17 +1020,13 @@ class FollowUpAgentOrchestrator:
                     case, available_slots
                 )
 
-                # Send message, falling back across channels like any other send
-                outcome = self._deliver_with_fallback(
-                    case, message, context="slot proposal", today=today
+                self._queue_outbound_message(
+                    case,
+                    message,
+                    context="slot proposal",
+                    today=today,
+                    action=action,
                 )
-                if outcome.success:
-                    case.status = CaseStatus.AWAITING_REPLY
-                    case.add_to_log(f"Proposed {len(available_slots)} appointment slots")
-                    print(f"   📅 Proposed appointment slots to {patient.name} "
-                          f"via {outcome.channel.value}")
-                else:
-                    self._escalate_undeliverable(case, outcome, today)
 
         elif action == AgentAction.CONFIRM_BOOKING:
             # Book the appointment, bounded by the booking window
@@ -865,11 +1051,13 @@ class FollowUpAgentOrchestrator:
                     "Your appointment is confirmed for "
                     f"{booked_date.strftime('%A, %B %d')}. See you then!"
                 )
-                outcome = self._deliver_with_fallback(
-                    case, confirmation_msg, context="booking confirmation", today=today
+                self._queue_outbound_message(
+                    case,
+                    confirmation_msg,
+                    context="booking confirmation",
+                    today=today,
+                    action=action,
                 )
-                if not outcome.success:
-                    self._escalate_undeliverable(case, outcome, today)
 
         elif action == AgentAction.ESCALATE_TO_STAFF:
             # Determine escalation priority based on urgency
@@ -909,15 +1097,13 @@ class FollowUpAgentOrchestrator:
                 f"Hi {patient.name}, just to confirm - would you like us to "
                 f"book the appointment, or would you prefer a different time?"
             )
-            outcome = self._deliver_with_fallback(
-                case, message, context="clarification request", today=today
+            self._queue_outbound_message(
+                case,
+                message,
+                context="clarification request",
+                today=today,
+                action=action,
             )
-            if outcome.success:
-                case.add_to_log("Requested clarification on ambiguous consent")
-                print(f"   ❓ Requested clarification from {patient.name} via "
-                      f"{outcome.channel.value}")
-            else:
-                self._escalate_undeliverable(case, outcome, today)
 
         elif action == AgentAction.DO_NOTHING:
             # No action needed at this time
@@ -1106,19 +1292,16 @@ class FollowUpAgentOrchestrator:
             case.status = CaseStatus.OPTED_OUT
             case.add_to_log("Recorded patient opt-out; no further contact will be made")
 
-        # Send response
+        # Queue the response; no patient-facing delivery occurs until staff
+        # confirms this item from the outreach page.
         if response:
-            outcome = self._deliver_with_fallback(
-                case, response, context="reply", today=received_date
+            self._queue_outbound_message(
+                case,
+                response,
+                context="reply",
+                today=received_date,
+                action=action,
             )
-            if outcome.success:
-                case.add_to_log(f"Agent: {response}")
-                print(f"   💬 Sent response via {outcome.channel.value}: "
-                      f"\"{response[:60]}...\"")
-            else:
-                # The patient is waiting for an answer the agent cannot deliver.
-                # Silence would look like being ignored, so escalate to a human.
-                self._escalate_undeliverable(case, outcome, received_date)
 
         print()
 
@@ -1508,5 +1691,6 @@ class FollowUpAgentOrchestrator:
             "cases_by_status": status_counts,
             "cases_by_urgency": urgency_counts,
             "escalated_cases": len(self.escalation_handler.get_escalated_cases()),
+            "pending_sends": self.get_pending_send_count(),
             "audit_summary": audit_summary,
         }

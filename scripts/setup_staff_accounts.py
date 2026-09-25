@@ -16,7 +16,6 @@ Security:
 """
 
 import sys
-import getpass
 from pathlib import Path
 
 # Allow running from project root
@@ -40,14 +39,15 @@ def setup_staff_account():
             break
         print("Username cannot be empty.\n")
     
-    # Get password
+    # Get password (visible input by request)
+    print("WARNING: Password input is visible in this terminal.")
     while True:
-        password = getpass.getpass("Enter password (min 8 characters): ")
+        password = input("Enter password (min 8 characters): ")
         if len(password) < 8:
             print("Password must be at least 8 characters.\n")
             continue
         
-        password_confirm = getpass.getpass("Confirm password: ")
+        password_confirm = input("Confirm password: ")
         if password != password_confirm:
             print("Passwords do not match.\n")
             continue
