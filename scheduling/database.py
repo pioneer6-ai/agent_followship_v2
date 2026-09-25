@@ -88,6 +88,30 @@ class SchedulingDatabase:
                 );
                 
                 CREATE INDEX IF NOT EXISTS idx_audit_appointment ON audit_log(appointment_request_id);
+
+                CREATE TABLE IF NOT EXISTS patients (
+                    patient_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    contact_sms TEXT,
+                    contact_whatsapp TEXT,
+                    contact_email TEXT,
+                    contact_phone_call TEXT,
+                    normalized_email TEXT,
+                    normalized_phone TEXT,
+                    preferred_channel TEXT NOT NULL,
+                    last_visit_date TEXT NOT NULL,
+                    treatment_type TEXT NOT NULL,
+                    recall_interval_days INTEGER NOT NULL,
+                    no_show_history INTEGER NOT NULL DEFAULT 0,
+                    language TEXT NOT NULL DEFAULT 'en',
+                    opted_out INTEGER NOT NULL DEFAULT 0,
+                    last_contacted TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_patients_normalized_email ON patients(normalized_email);
+                CREATE INDEX IF NOT EXISTS idx_patients_normalized_phone ON patients(normalized_phone);
             ''')
 
             # Idempotent guard for databases created before the `source`

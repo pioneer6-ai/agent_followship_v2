@@ -10,6 +10,7 @@ the agent, including:
 - Simulation controls for testing
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -35,13 +36,15 @@ import secrets
 
 from agent.orchestrator import FollowUpAgentOrchestrator
 from agent.patient_chat import PatientChatAssistant
-from core.data_access import MockPatientDataStore, MockCalendarIntegration
+from core.data_access import MockPatientDataStore, MockCalendarIntegration, SqlitePatientDataStore
 from core.scheduling_calendar_adapter import SchedulingDatabaseCalendarAdapter
 from core.slot_ranking import rank_slots_by_missed_appointment
 from core.models import PatientRecord, ContactChannel, CaseStatus, UrgencyLevel
 from core.config import ClinicPolicyConfig
 from utils.llm_parser import LLMPatientParser
-from web.patient_portal_auth import PatientAccessTokenStore
+from web.patient_portal_auth import (
+    PatientAccessTokenStore, build_portal_link_provider, get_patient_portal_path,
+)
 from core.urgency_config import UrgencyRulesConfig
 from core.configuration_store import ConfigurationStore
 from core.preview_engine import PreviewEngine
@@ -67,49 +70,74 @@ app.config['SECRET_KEY'] = secrets.token_hex(32)  # Generate secure secret
 # Initialize the agent orchestrator. DECIDE goes through Claude when
 # ANTHROPIC_API_KEY is set (the LLM may only pick actions the rule engine
 # permits); with no key it runs rules-only, so this is safe offline.
-data_store = MockPatientDataStore()
 policy = ClinicPolicyConfig()
 
-# SINGLE PRODUCTION APPOINTMENT SOURCE OF TRUTH.
+# SINGLE PRODUCTION APPOINTMENT *AND PATIENT* SOURCE OF TRUTH.
 #
 # scheduling_db (SchedulingDatabase, backed by scheduling.db) is the one
-# persistent store for appointments in this application. Both the staff
-# calendar (web/calendar_routes.py, via CalendarService) and the agent/
-# Patient Portal booking flow (via `calendar` below) read and write the
-# SAME SchedulingDatabase instance - there is no separate in-memory
-# calendar in production, and nothing here copies or syncs data between
-# two stores. A booking made through either surface is immediately visible
-# through the other, because they are the same rows in the same database.
+# persistent store for both appointments AND patients in this application.
+# The staff calendar (web/calendar_routes.py, via CalendarService), the
+# agent/Patient Portal booking flow (via `calendar` below), AND the
+# patient upload/import flow (via `data_store` below) all read and write
+# the SAME SchedulingDatabase instance/file - there is no separate
+# in-memory calendar and no separate patient store in production, and
+# nothing here copies or syncs data between two stores. A booking or a
+# patient import made through any surface is immediately visible through
+# every other, because they are the same rows in the same database.
 #
 # `calendar` (the CalendarIntegration the agent/AppointmentScheduler use)
 # is SchedulingDatabaseCalendarAdapter, not MockCalendarIntegration, for
-# exactly this reason. MockCalendarIntegration remains available and is
+# exactly this reason; `data_store` (the PatientDataStore the agent/
+# upload-import routes use) is SqlitePatientDataStore, not
+# MockPatientDataStore, for the same reason - uploaded/imported patients
+# must survive a restart. Both Mock* classes remain available and are
 # still used by tests that explicitly want an isolated in-memory fake
-# (see core/data_access.py) - it is simply not what this running
+# (see core/data_access.py) - they are simply not what this running
 # application wires up.
 _app_dir = Path(__file__).parent.parent
 auth_db = AuthDatabase(str(_app_dir / 'auth.db'))
 scheduling_db = SchedulingDatabase(str(_app_dir / 'scheduling.db'))
 calendar = SchedulingDatabaseCalendarAdapter(scheduling_db, requested_by="patient_portal")
+data_store = SqlitePatientDataStore(scheduling_db)
+
+# Patient self-service portal: a demo access-token store (see
+# web/patient_portal_auth.py for why this is demo-only). Created BEFORE
+# `agent` below (not after, as it once was) because the orchestrator's
+# follow-up reminder composer needs it too - see `portal_link_provider`
+# just below. Both the portal routes further down AND the reminder emails
+# resolve through this SAME instance, so a link issued either way is
+# identical for a given patient - no second token system.
+patient_portal_tokens = PatientAccessTokenStore()
+
+# Builds patient_id -> full portal URL, reusing the exact same token logic
+# as POST /api/patients/<id>/portal-link (see that route, and
+# web/patient_portal_auth.py's build_portal_link_provider) - a plain
+# Python function call, never an HTTP request back into this app.
+# PORTAL_BASE_URL (e.g. "https://clinic.example.com") should be set in
+# production so reminder emails contain a real, clickable absolute URL;
+# left unset, links stay relative (fine for local/demo use).
+portal_link_provider = build_portal_link_provider(
+    patient_portal_tokens, base_url=os.environ.get("PORTAL_BASE_URL", "")
+)
 
 # Initialize urgency configuration
 config_store = ConfigurationStore()
 urgency_config, had_error = config_store.load()
 if had_error:
     print("[WARNING] Failed to load urgency config, using defaults")
-agent = FollowUpAgentOrchestrator.with_llm_decisions(data_store, calendar, policy, urgency_config=urgency_config)
+agent = FollowUpAgentOrchestrator.with_llm_decisions(
+    data_store, calendar, policy, urgency_config=urgency_config,
+    portal_link_provider=portal_link_provider,
+)
 
 # Initialize LLM parser
 llm_parser = LLMPatientParser(use_llm=False)  # Set to True with API key for real LLM
 
-# Patient self-service portal: a demo access-token store (see
-# web/patient_portal_auth.py for why this is demo-only) and a chat
-# assistant that is secondary to the slot picker. Both share the SAME
+# Secondary chat assistant for the patient portal. Shares the SAME
 # `agent`/`data_store`/`calendar` instances above - a booking made here is
 # immediately visible through the existing staff dashboard AND the staff
 # calendar, since `calendar` now delegates to the same scheduling_db the
 # staff calendar routes use (see the note above).
-patient_portal_tokens = PatientAccessTokenStore()
 patient_chat_assistant = PatientChatAssistant.from_environment()
 
 # Initialize staff calendar routes against the SAME scheduling_db/auth_db
@@ -708,11 +736,17 @@ def issue_patient_portal_link(patient_id):
     if not patient:
         return jsonify({'success': False, 'error': 'Patient not found'}), 404
 
-    token = patient_portal_tokens.issue_token(patient_id)
+    # Shared implementation (web/patient_portal_auth.py) - the follow-up
+    # reminder email composer (agent/notifications.py) calls the SAME
+    # function to embed a patient's portal link, so a link issued here
+    # and a link embedded in an email are always identical for a given
+    # patient, with no second token system and no HTTP call between them.
+    portal_path = get_patient_portal_path(patient_portal_tokens, patient_id)
+    token = portal_path.rsplit('/', 1)[-1]
     return jsonify({
         'success': True,
         'access_token': token,
-        'portal_url': f"/patient/{token}",
+        'portal_url': portal_path,
     })
 
 
@@ -777,15 +811,26 @@ def upload_patient_list():
 @app.route('/api/import-patients', methods=['POST'])
 def import_patients():
     """
-    Import parsed patients into the system.
-    
+    Import parsed patients into the Patient Master Database.
+
+    Every uploaded/imported record goes through
+    PatientDataStore.import_patient (see core/data_access.py for the full
+    duplicate-matching + merge contract): same patient_id, otherwise same
+    normalized email, otherwise same normalized phone number is treated as
+    the SAME patient and MERGED (non-blank incoming fields overwrite,
+    blank incoming fields never erase existing data) rather than inserted
+    as a duplicate row; name alone never triggers a merge. This route
+    itself no longer does its own id/name duplicate check - that logic now
+    lives in the store so it applies uniformly regardless of caller.
+
     Request body:
         {
             "patients": [parsed patient objects]
         }
-        
+
     Returns:
-        JSON with import results including duplicate warnings
+        JSON with import results: how many rows were newly inserted vs.
+        merged into an existing patient, and how each merge was matched.
     """
     data = request.get_json()
     
@@ -793,29 +838,18 @@ def import_patients():
         return jsonify({'success': False, 'error': 'No patient data provided'}), 400
     
     try:
-        imported_count = 0
-        skipped_count = 0
-        duplicate_patients = []
-        
-        # Get existing patients to check for duplicates
-        existing_patients = data_store.get_all_active_patients()
-        existing_ids = {p.patient_id for p in existing_patients}
-        existing_names = {p.name.lower() for p in existing_patients}
-        
+        inserted_count = 0
+        updated_count = 0
+        updated_patients = []
+        next_generated_suffix = 1000
+
         for patient_data in data['patients']:
-            patient_id = patient_data.get('patient_id', f"P{imported_count+1000}")
+            patient_id = patient_data.get('patient_id')
+            if not patient_id or not str(patient_id).strip():
+                patient_id = f"P{next_generated_suffix}"
+                next_generated_suffix += 1
             patient_name = patient_data.get('name', 'Unknown')
-            
-            # Check for duplicate by ID or name
-            if patient_id in existing_ids or patient_name.lower() in existing_names:
-                skipped_count += 1
-                duplicate_patients.append({
-                    'name': patient_name,
-                    'id': patient_id,
-                    'reason': 'Patient already exists in the system'
-                })
-                continue  # Skip this patient
-            
+
             # Convert to PatientRecord
             contact_info_dict = {}
             for channel_str, value in patient_data.get('contact_info', {}).items():
@@ -831,11 +865,11 @@ def import_patients():
                         contact_info_dict[ContactChannel.PHONE_CALL] = value
                 except Exception as e:
                     print(f"Warning: Failed to parse contact channel {channel_str}: {e}")
-            
+
             # If no contact info parsed, add a default
             if not contact_info_dict:
                 contact_info_dict[ContactChannel.SMS] = "000-000-0000"
-            
+
             # Parse preferred channel
             pref_channel_str = patient_data.get('preferred_channel', 'sms')
             preferred_channel = ContactChannel.SMS
@@ -845,7 +879,7 @@ def import_patients():
                 preferred_channel = ContactChannel.EMAIL
             elif pref_channel_str == 'phone_call':
                 preferred_channel = ContactChannel.PHONE_CALL
-            
+
             # Parse last visit date
             last_visit_str = patient_data.get('last_visit_date')
             if isinstance(last_visit_str, str):
@@ -857,7 +891,7 @@ def import_patients():
                 last_visit_date = last_visit_str
             else:
                 last_visit_date = date.today() - timedelta(days=180)
-            
+
             patient = PatientRecord(
                 patient_id=patient_id,
                 name=patient_name,
@@ -869,21 +903,31 @@ def import_patients():
                 no_show_history=patient_data.get('no_show_history', 0),
                 language=patient_data.get('language', 'en')
             )
-            
-            # Add to data store
-            data_store.add_patient(patient)
-            
-            # Add to existing sets to catch duplicates within the same upload
-            existing_ids.add(patient_id)
-            existing_names.add(patient_name.lower())
-            
-            imported_count += 1
-        
-        # After importing, automatically run a cycle to queue new patient
-        # messages for staff review. The cycle cannot transmit anything.
+
+            # Duplicate matching + merge happens inside the store (same
+            # patient_id, otherwise normalized email, otherwise normalized
+            # phone - never name alone). See core/data_access.py.
+            outcome = data_store.import_patient(patient)
+            if outcome.action == "inserted":
+                inserted_count += 1
+            else:
+                updated_count += 1
+                updated_patients.append({
+                    'name': patient_name,
+                    'id': outcome.patient_id,
+                    'matched_by': outcome.matched_by,
+                })
+
+        imported_count = inserted_count + updated_count
+
+        # After importing, automatically run a cycle to queue new/updated
+        # patient messages for staff review - the cycle only QUEUES
+        # messages (see FollowUpAgentOrchestrator._queue_outbound_message);
+        # nothing is transmitted until staff explicitly confirms from the
+        # /staff/outreach page.
         queued_count = 0
         if imported_count > 0:
-            print(f"\n🔄 Running agent cycle to queue messages for {imported_count} newly imported patients...")
+            print(f"\n🔄 Running agent cycle to queue messages for {imported_count} imported patients...")
             pending_before = {
                 item['send_id'] for item in agent.get_pending_sends()
             }
@@ -893,15 +937,21 @@ def import_patients():
                 1 for item in pending_after
                 if item['send_id'] not in pending_before
             )
-        
+
         return jsonify({
             'success': True,
             'imported_count': imported_count,
-            'skipped_count': skipped_count,
+            'inserted_count': inserted_count,
+            'updated_count': updated_count,
+            # Kept for backward compatibility with any existing frontend
+            # reading these two keys - "skipped" never happens today (a
+            # duplicate is merged, not skipped), so this is always 0/[].
+            'skipped_count': 0,
+            'duplicate_patients': [],
+            'updated_patients': updated_patients,
             'queued_count': queued_count,
             'pending_count': len(agent.get_pending_sends()),
             'confirmation_url': '/staff/outreach' if queued_count else None,
-            'duplicate_patients': duplicate_patients
         })
     
     except Exception as e:
@@ -1578,38 +1628,53 @@ def preview_urgency_config():
 
 if __name__ == '__main__':
     # Initialize with sample data
-    from utils.sample_data import initialize_sample_data
-    initialize_sample_data(data_store, calendar)
-
-    # Run one cycle so the sample patients have active cases the portal can
-    # resolve tokens against (mirrors how the dashboard's "Run Cycle" button
-    # populates agent.active_cases).
-    agent.run_daily_cycle(date.today())
-
-    # Mint one demo portal token so there's a ready-to-open URL, without
-    # requiring the staff dashboard's "issue portal link" call first.
-    demo_patients = data_store.get_all_active_patients()
-    demo_portal_url = None
-    if demo_patients:
-        demo_token = patient_portal_tokens.issue_token(demo_patients[0].patient_id)
-        demo_portal_url = f"/patient/{demo_token}"
-
     port = 8080  # Using port 8080 to avoid conflicts with AirPlay Receiver
-    
-    print("\n" + "="*70)
-    print("🏥 Patient Follow-up Agent - Web Dashboard")
-    print("="*70)
-    print(f"\n📊 Dashboard: http://localhost:{port}")
-    if demo_portal_url:
-        print(f"🧑‍⚕️ Patient Portal (demo token): http://localhost:{port}{demo_portal_url}")
-    print("📡 API Endpoints:")
-    print("   GET  /api/status          - Agent statistics")
-    print("   GET  /api/cases           - All active cases")
-    print("   GET  /api/escalations     - Escalated cases")
-    print("   POST /api/run-cycle       - Trigger daily cycle")
-    print("   POST /api/simulate-reply  - Simulate patient reply")
-    print("   GET  /api/audit-logs      - View audit logs")
-    print("   POST /api/patients/<id>/portal-link - Issue a patient portal link")
-    print("\n" + "="*70 + "\n")
-    
+
+    # Flask's debug reloader (app.run(debug=True) below) re-executes this
+    # entire module in a second, separate process to watch for file changes.
+    # Without this guard, sample-data seeding, the daily cycle (which
+    # "sends" a reminder to every overdue patient - see the [sms]/[email]/
+    # etc. prints), and the demo token mint would all run twice per
+    # `python web/app.py` invocation: once in the reloader's watcher
+    # process (which never serves requests), once in the actual worker
+    # process. Werkzeug sets WERKZEUG_RUN_MAIN=true ONLY in that second,
+    # real worker process; it is unset in the watcher process, and unset
+    # entirely if the reloader is off (e.g. debug=False). So "run the
+    # one-time startup work" means: skip it only when the reloader is on
+    # AND this is the watcher process (WERKZEUG_RUN_MAIN not yet "true").
+    is_reloader_parent_process = os.environ.get('WERKZEUG_RUN_MAIN') != 'true'
+
+    if not is_reloader_parent_process:
+        from utils.sample_data import initialize_sample_data
+        initialize_sample_data(data_store, calendar)
+
+        # Run one cycle so the sample patients have active cases the portal can
+        # resolve tokens against (mirrors how the dashboard's "Run Cycle" button
+        # populates agent.active_cases).
+        agent.run_daily_cycle(date.today())
+
+        # Mint one demo portal token so there's a ready-to-open URL, without
+        # requiring the staff dashboard's "issue portal link" call first.
+        demo_patients = data_store.get_all_active_patients()
+        demo_portal_url = None
+        if demo_patients:
+            demo_token = patient_portal_tokens.issue_token(demo_patients[0].patient_id)
+            demo_portal_url = f"/patient/{demo_token}"
+
+        print("\n" + "="*70)
+        print("🏥 Patient Follow-up Agent - Web Dashboard")
+        print("="*70)
+        print(f"\n📊 Dashboard: http://localhost:{port}")
+        if demo_portal_url:
+            print(f"🧑‍⚕️ Patient Portal (demo token): http://localhost:{port}{demo_portal_url}")
+        print("📡 API Endpoints:")
+        print("   GET  /api/status          - Agent statistics")
+        print("   GET  /api/cases           - All active cases")
+        print("   GET  /api/escalations     - Escalated cases")
+        print("   POST /api/run-cycle       - Trigger daily cycle")
+        print("   POST /api/simulate-reply  - Simulate patient reply")
+        print("   GET  /api/audit-logs      - View audit logs")
+        print("   POST /api/patients/<id>/portal-link - Issue a patient portal link")
+        print("\n" + "="*70 + "\n")
+
     app.run(debug=True, host='0.0.0.0', port=port)

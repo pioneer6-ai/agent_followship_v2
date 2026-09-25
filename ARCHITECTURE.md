@@ -610,7 +610,7 @@ and no network: `FakeTransport` / `FakeSmtpConnection` record requests,
 so the agent's failure handling is exercised without touching a provider.
 
 ```bash
-.venv/bin/python -m pytest tests/ -q          # 811 tests
+.venv/bin/python -m pytest tests/ -q          # 871 tests
 .venv/bin/python -m tools.demo_tool_use       # 3 scenarios, 11 checks
 ```
 

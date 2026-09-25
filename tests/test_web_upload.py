@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from web.app import agent, app, data_store
+from web.app import agent, app, data_store, scheduling_db
 
 PATIENT_LIST = [
     {
@@ -45,13 +45,20 @@ PATIENT_LIST = [
 
 def empty_store():
     """
-    Reset the in-memory store between tests.
+    Reset the patient store between tests.
 
-    The mock store keeps patients in ``_patients``; the web app holds a single
-    module-level instance, so tests must not inherit each other's imports.
+    ``web.app``'s ``data_store`` is SqlitePatientDataStore, backed by the
+    real (persistent) ``patients`` table in scheduling_db - the web app
+    holds a single module-level instance, so tests must not inherit each
+    other's rows. Deleting directly from the table is the SQLite-store
+    equivalent of the old ``MockPatientDataStore._patients.clear()``.
     """
-    data_store._patients.clear()
-    data_store._last_contacted.clear()
+    conn = scheduling_db.get_connection()
+    try:
+        conn.execute("DELETE FROM patients")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 @pytest.fixture
@@ -209,11 +216,14 @@ class TestImportReachesTheDashboard:
         audit = client.get("/api/status").get_json()["audit_summary"]
         assert audit["total_decisions"] > 0
 
-    def test_a_duplicate_upload_is_skipped_not_re_imported(self, client):
+    def test_a_duplicate_upload_is_merged_not_re_inserted(self, client):
+        # Re-importing the exact same list (same patient_id) must MERGE
+        # into the existing rows, not insert duplicates and not error out.
         import_patients(client, PATIENT_LIST)
         second = import_patients(client, PATIENT_LIST).get_json()
-        assert second["imported_count"] == 0
-        assert second["skipped_count"] == 2
+        assert second["inserted_count"] == 0
+        assert second["updated_count"] == 2
+        assert second["imported_count"] == 2
         assert len(data_store.get_all_active_patients()) == 2
 
     def test_an_import_without_patients_is_refused(self, client):
@@ -230,6 +240,97 @@ class TestImportReachesTheDashboard:
             [{"patient_id": "UP-9", "name": "No Contact", "contact_info": {}}],
         )
         assert response.get_json()["imported_count"] == 1
+
+    def test_a_second_upload_with_the_same_email_but_a_different_id_merges(self, client):
+        # The Patient Master Database: same email (case/whitespace
+        # insensitive) is the SAME patient even under a different
+        # patient_id - it must be merged, not inserted as a duplicate.
+        import_patients(
+            client,
+            [{
+                "patient_id": "DUP-A",
+                "name": "Original Name",
+                "contact_info": {"email": "dup@example.com"},
+                "preferred_channel": "email",
+                "last_visit_date": "2023-01-15",
+                "treatment_type": "cleaning",
+            }],
+        )
+        second = import_patients(
+            client,
+            [{
+                "patient_id": "DUP-B",
+                "name": "Updated Name",
+                "contact_info": {"email": "  DUP@EXAMPLE.COM  "},
+                "preferred_channel": "email",
+                "last_visit_date": "2023-06-01",
+                "treatment_type": "checkup",
+            }],
+        ).get_json()
+
+        assert second["inserted_count"] == 0
+        assert second["updated_count"] == 1
+        assert second["updated_patients"][0]["matched_by"] == "email"
+
+        patients = {p.patient_id: p for p in data_store.get_all_active_patients()}
+        assert len(patients) == 1
+        assert patients["DUP-A"].name == "Updated Name"
+
+    def test_imported_patient_survives_reopening_the_apps_own_scheduling_db_file(self, client):
+        """Not an isolated tmp_path fixture - this reopens the EXACT
+        scheduling.db file path web.app itself uses (see
+        web.app.scheduling_db.db_path), proving the fix actually applies
+        to the real running application's database, not just a test
+        double of it."""
+        import_patients(
+            client,
+            [{
+                "patient_id": "RESTART-1",
+                "name": "Restart Survivor",
+                "contact_info": {"email": "restart@example.com"},
+                "preferred_channel": "email",
+                "last_visit_date": "2023-01-15",
+                "treatment_type": "cleaning",
+            }],
+        )
+
+        from scheduling.database import SchedulingDatabase
+        from core.data_access import SqlitePatientDataStore
+
+        reopened = SqlitePatientDataStore(SchedulingDatabase(scheduling_db.db_path))
+        patient = reopened.get_patient_by_id("RESTART-1")
+        assert patient is not None
+        assert patient.name == "Restart Survivor"
+
+    def test_a_second_upload_with_a_blank_email_does_not_erase_the_existing_one(self, client):
+        import_patients(
+            client,
+            [{
+                "patient_id": "KEEP-1",
+                "name": "Has Email",
+                "contact_info": {"email": "keep@example.com"},
+                "preferred_channel": "email",
+                "last_visit_date": "2023-01-15",
+                "treatment_type": "cleaning",
+            }],
+        )
+        import_patients(
+            client,
+            [{
+                "patient_id": "KEEP-1",
+                "name": "Has Email",
+                "contact_info": {},
+                "last_visit_date": "2023-06-01",
+                "treatment_type": "checkup",
+            }],
+        )
+
+        patient = data_store.get_patient_by_id("KEEP-1")
+        from core.models import ContactChannel
+
+        assert patient.contact_info[ContactChannel.EMAIL] == "keep@example.com"
+        # The genuinely new field (treatment_type) still took effect.
+        assert patient.treatment_type == "checkup"
 
 
 def _xlsx_bytes(rows, header=None):

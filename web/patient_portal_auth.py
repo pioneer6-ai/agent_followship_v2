@@ -106,3 +106,65 @@ def generate_token(num_bytes: int = 24) -> str:
         A URL-safe token string containing no patient-identifying data.
     """
     return secrets.token_urlsafe(num_bytes)
+
+
+def get_patient_portal_path(token_store: PatientAccessTokenStore, patient_id: str) -> str:
+    """
+    The SINGLE shared implementation of "turn a patient_id into their
+    Patient Portal link". Both the staff-facing
+    ``POST /api/patients/<id>/portal-link`` route (web/app.py) and the
+    follow-up email composer (agent/notifications.py, via
+    ``build_portal_link_provider`` below) call this exact function -
+    neither one has its own token-issuing logic, and the email layer does
+    NOT call the Flask route over HTTP to get here; it imports and calls
+    this plain Python function directly, same as the route does.
+
+    Args:
+        token_store: The app's one PatientAccessTokenStore instance.
+        patient_id: The patient to link to. ``issue_token`` returns the
+            SAME token every time for the same patient_id (see its own
+            docstring), so calling this repeatedly for one patient (e.g.
+            once per reminder email, or once from the staff dashboard) is
+            idempotent and always yields the same link.
+
+    Returns:
+        A path of the form ``/patient/<access_token>`` - relative, with no
+        scheme/host. Callers that need an absolute URL (e.g. an email,
+        where a relative link is meaningless) must prepend a base URL
+        themselves - see ``build_portal_link_provider``.
+    """
+    token = token_store.issue_token(patient_id)
+    return f"/patient/{token}"
+
+
+def build_portal_link_provider(token_store: PatientAccessTokenStore, base_url: str = ""):
+    """
+    Build a zero-argument-per-call callable that turns a patient_id into a
+    full, absolute Patient Portal URL - the shape
+    ``agent.notifications.MessageComposerAgent`` needs so it can embed a
+    patient-specific link in a reminder email without importing Flask,
+    ``web.app``, or making any HTTP call. This is what keeps the email
+    layer decoupled from the web layer while still reusing the exact same
+    token logic as the staff-facing portal-link route.
+
+    Args:
+        token_store: The app's one PatientAccessTokenStore instance -
+            pass the SAME instance the Flask routes use (see web/app.py)
+            so a link minted for an email and a link minted via the
+            dashboard for the same patient are identical.
+        base_url: Scheme+host to prepend, e.g. ``"https://clinic.example.com"``
+            (no trailing slash). Left empty, the returned URLs stay
+            relative (``/patient/<token>``) - fine for tests, but not a
+            usable link in a real email, so production wiring (web/app.py)
+            must supply a real base_url.
+
+    Returns:
+        A ``Callable[[str], str]`` mapping patient_id -> full portal URL.
+    """
+    normalized_base = base_url.rstrip("/")
+
+    def provider(patient_id: str) -> str:
+        path = get_patient_portal_path(token_store, patient_id)
+        return f"{normalized_base}{path}" if normalized_base else path
+
+    return provider

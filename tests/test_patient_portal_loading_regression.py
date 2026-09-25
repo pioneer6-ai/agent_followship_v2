@@ -45,14 +45,13 @@ from web.app import agent, app, data_store, patient_portal_tokens, scheduling_db
 
 
 def reset_state():
-    data_store._patients.clear()
-    data_store._last_contacted.clear()
     agent.active_cases.clear()
     agent.undelivered.clear()
     patient_portal_tokens._tokens.clear()
 
     conn = scheduling_db.get_connection()
     try:
+        conn.execute("DELETE FROM patients")
         conn.execute("DELETE FROM appointment_requests")
         conn.execute("DELETE FROM audit_log")
         conn.execute("DELETE FROM blocked_periods")
