@@ -55,6 +55,8 @@ class SendRequest:
         body: Pre-rendered text (used for SMS/email and free-form WhatsApp).
         subject: Email subject line.
         language: Template language code.
+        extra_headers: Additional email headers (e.g., In-Reply-To, References).
+            Only used by email providers. Other channels ignore this field.
     """
 
     to: str
@@ -63,6 +65,7 @@ class SendRequest:
     body: Optional[str] = None
     subject: Optional[str] = None
     language: str = "en"
+    extra_headers: Optional[Dict[str, str]] = None
 
 
 @dataclass
@@ -519,6 +522,13 @@ class SmtpEmailProvider(MessageProvider):
         message["From"] = self._from_header()
         message["Subject"] = request.subject or "Message from your dental clinic"
         message.set_content(request.body or "")
+        
+        # Add conversation threading headers if provided
+        if request.extra_headers:
+            for header_name, header_value in request.extra_headers.items():
+                if header_value:  # Only add non-empty headers
+                    message[header_name] = header_value
+        
         return message
 
     def _from_header(self) -> str:

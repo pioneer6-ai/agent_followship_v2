@@ -97,6 +97,59 @@ agent = FollowUpAgentOrchestrator.with_llm_decisions(data_store, calendar, polic
 # Initialize LLM parser
 llm_parser = LLMPatientParser(use_llm=False)  # Set to True with API key for real LLM
 
+# Initialize email conversation system
+from agent.conversation import ConversationManager
+from agent.email_conversations import EmailConversationManager
+from agent.email_llm_adapter import create_email_llm_client
+from agent.smtp_conversation_provider import SmtpConversationProvider
+from agent.patient_lookup import PatientLookupService
+from tools.llm_providers import create_llm_client, LlmProviderConfig
+from tools.providers import SmtpEmailProvider
+from tools.config import MessagingConfig
+import os
+
+# Initialize LLM client for conversations
+llm_config = LlmProviderConfig.from_env()
+try:
+    provider_client = create_llm_client(llm_config)
+    email_llm = create_email_llm_client(provider_client) if provider_client else None
+    
+    if email_llm:
+        llm_mode = f"{llm_config.kind}/{llm_config.model}"
+        print(f"[Email Conversations] LLM enabled: {llm_mode}")
+    else:
+        print("[Email Conversations] LLM disabled - using template responses")
+except Exception as e:
+    # Handle missing SDK or configuration errors gracefully
+    print(f"[Email Conversations] LLM initialization failed: {e}")
+    print("[Email Conversations] Falling back to template responses")
+    provider_client = None
+    email_llm = None
+
+# Initialize SMTP provider for conversations
+messaging_config = MessagingConfig.from_env()
+smtp_provider = SmtpEmailProvider(messaging_config)
+conversation_email_provider = SmtpConversationProvider(smtp_provider)
+
+if not smtp_provider.is_configured():
+    print("[Email Conversations] SMTP not configured - sends will be simulated")
+else:
+    print(f"[Email Conversations] SMTP configured: {messaging_config.smtp_host}")
+
+# Initialize conversation managers
+conversation_manager = ConversationManager(use_llm=False)
+patient_lookup_service = PatientLookupService(data_store)
+
+email_conversation_manager = EmailConversationManager(
+    conversation_manager=conversation_manager,
+    llm_client=email_llm,
+    clinic_domain=os.environ.get('CLINIC_DOMAIN', 'clinic.example.com'),
+    db_path=os.environ.get('EMAIL_CONVERSATION_DB_PATH', 'email_conversations.db'),
+    email_provider=conversation_email_provider
+)
+
+print(f"[Email Conversations] Initialized - DB: {email_conversation_manager.persistence.db_path}")
+
 # Patient self-service portal: a demo access-token store (see
 # web/patient_portal_auth.py for why this is demo-only) and a chat
 # assistant that is secondary to the slot picker. Both share the SAME
