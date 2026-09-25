@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Patient Messages</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; background: #f5f7fa; color: #263238; }
+        header { background: #263238; color: white; padding: 18px 28px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { margin: 0; font-size: 22px; }
+        header a { color: white; margin-left: 18px; text-decoration: none; }
+        main { max-width: 1180px; margin: 28px auto; padding: 0 18px; }
+        .notice { background: #fff8e1; border: 1px solid #ffcc80; border-radius: 8px; padding: 15px 18px; margin-bottom: 18px; }
+        .toolbar { background: white; border-radius: 8px; padding: 14px 18px; margin-bottom: 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; box-shadow: 0 1px 4px #00000012; }
+        button { border: 0; border-radius: 5px; padding: 10px 15px; cursor: pointer; font-weight: 600; }
+        button:disabled { opacity: .55; cursor: not-allowed; }
+        .confirm { background: #2e7d32; color: white; }
+        .cancel { background: #c62828; color: white; }
+        .refresh { background: #1565c0; color: white; }
+        .filter { padding: 9px 10px; border: 1px solid #b0bec5; border-radius: 5px; background: white; }
+        .count { margin-left: auto; font-weight: 600; }
+        .message { background: white; border-radius: 8px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 4px #00000012; border-left: 5px solid #ef6c00; }
+        .message-top { display: flex; gap: 12px; align-items: flex-start; }
+        .message-top input { margin-top: 4px; width: 18px; height: 18px; }
+        .patient { font-size: 18px; font-weight: 700; }
+        .meta { color: #546e7a; font-size: 14px; margin-top: 6px; }
+        .tag { display: inline-block; background: #e3f2fd; color: #1565c0; border-radius: 12px; padding: 3px 9px; margin-right: 5px; font-size: 12px; }
+        .preview { width: calc(100% - 30px); min-height: 120px; resize: vertical; white-space: pre-wrap; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 13px; margin: 14px 0 0 30px; line-height: 1.45; font: inherit; }
+        .preview:read-only { background: #eceff1; color: #455a64; cursor: not-allowed; }
+        .save-message { margin: 8px 0 0 30px; background: #546e7a; color: white; padding: 7px 11px; font-size: 12px; }
+        .save-message:hover { background: #37474f; }
+        .empty { text-align: center; background: white; padding: 45px; border-radius: 8px; color: #607d8b; }
+        #status { margin: 10px 0; min-height: 20px; }
+        .error { color: #c62828; }
+        .success { color: #2e7d32; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>✉️ Review Patient Messages</h1>
+    <div>
+        <span>{{ user.username if user else 'Staff' }}</span>
+        <a href="/">Dashboard</a>
+        <a href="/staff/calendar">Calendar</a>
+    </div>
+</header>
+<main>
+    <div class="notice">
+        <strong>Nothing on this page has been sent.</strong>
+        Review each patient, channel, recipient, and message. Select the messages you approve, then click <strong>Confirm Selected</strong>. Use <strong>Cancel Selected</strong> to discard messages without sending them.
+    </div>
+    <div class="toolbar">
+        <label><input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)"> Select all</label>
+        <label for="urgencyFilter">Importance:</label>
+        <select id="urgencyFilter" class="filter" onchange="setUrgencyFilter(this.value)">
+            <option value="all">All</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+        </select>
+        <button class="confirm" id="confirmBtn" onclick="submitSelection('/api/outreach/confirm')">Confirm Selected</button>
+        <button class="cancel" id="cancelBtn" onclick="submitSelection('/api/outreach/cancel')">Cancel Selected</button>
+        <button class="refresh" onclick="loadPending()">Refresh</button>
+        <span class="count" id="count">Loading...</span>
+    </div>
+    <div id="status"></div>
+    <section id="messages"></section>
+</main>
+<script>
+    let pendingMessages = [];
+    let csrfToken = '';
+
+    function setStatus(text, isError) {
+        const node = document.getElementById('status');
+        node.textContent = text || '';
+        node.className = text ? (isError ? 'error' : 'success') : '';
+    }
+
+    async function getCsrfToken() {
+        const response = await fetch('/api/calendar/csrf-token', { headers: { 'Accept': 'application/json' } });
+        const data = await response.json();
+        if (!response.ok || !data.csrf_token) throw new Error(data.error || 'Could not get security token');
+        csrfToken = data.csrf_token;
+    }
+
+    function addText(parent, tag, text, className) {
+        const node = document.createElement(tag);
+        node.textContent = text || '';
+        if (className) node.className = className;
+        parent.appendChild(node);
+        return node;
+    }
+
+    function setUrgencyFilter(value) {
+        document.getElementById('urgencyFilter').value = value;
+        document.getElementById('selectAll').checked = true;
+        renderMessages();
+    }
+
+    function visibleMessages() {
+        const selectedUrgency = document.getElementById('urgencyFilter').value;
+        if (selectedUrgency === 'all') return pendingMessages;
+        return pendingMessages.filter(item => item.urgency === selectedUrgency);
+    }
+
+    function renderMessages() {
+        const container = document.getElementById('messages');
+        const visible = visibleMessages();
+        container.textContent = '';
+        document.getElementById('count').textContent = `${visible.length} shown / ${pendingMessages.length} total pending`;
+        if (!visible.length) {
+            addText(container, 'div', 'No patient messages match this importance filter.', 'empty');
+            return;
+        }
+        visible.forEach(item => {
+            const card = document.createElement('article');
+            card.className = 'message';
+            const top = document.createElement('div');
+            top.className = 'message-top';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'send-check';
+            checkbox.value = item.send_id;
+            checkbox.checked = document.getElementById('selectAll').checked;
+            checkbox.setAttribute('aria-label', `Select message for ${item.patient_name}`);
+            top.appendChild(checkbox);
+            const details = document.createElement('div');
+            addText(details, 'div', item.patient_name, 'patient');
+            addText(details, 'div', `Patient ID: ${item.patient_id} · Recipient: ${item.recipient || 'No recipient found'}`, 'meta');
+            addText(details, 'div', `${item.created_at} · scheduled for ${item.scheduled_for}`, 'meta');
+            const tags = document.createElement('div');
+            tags.style.marginTop = '8px';
+            addText(tags, 'span', item.context, 'tag');
+            addText(tags, 'span', item.channel, 'tag');
+            addText(tags, 'span', item.urgency, 'tag');
+            if (item.available_channels && item.available_channels.length) addText(tags, 'span', `Fallbacks: ${item.available_channels.join(', ')}`, 'tag');
+            details.appendChild(tags);
+            top.appendChild(details);
+            card.appendChild(top);
+
+            const editor = document.createElement('textarea');
+            editor.className = 'preview';
+            editor.value = item.message || '';
+            editor.readOnly = true;
+            editor.setAttribute('aria-label', `Message for ${item.patient_name}`);
+            card.appendChild(editor);
+
+            const saveButton = document.createElement('button');
+            saveButton.className = 'save-message';
+            saveButton.textContent = 'Edit message';
+            saveButton.addEventListener('click', () => {
+                if (editor.readOnly) {
+                    editor.readOnly = false;
+                    saveButton.textContent = 'Save message edit';
+                    editor.focus();
+                } else {
+                    updateMessage(item.send_id, editor.value, saveButton, editor);
+                }
+            });
+            card.appendChild(saveButton);
+            container.appendChild(card);
+        });
+    }
+
+    async function updateMessage(sendId, message, button, editor) {
+        if (!message.trim()) {
+            setStatus('Message cannot be empty.', true);
+            return;
+        }
+        button.disabled = true;
+        try {
+            await getCsrfToken();
+            const response = await fetch('/api/outreach/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, 'Accept': 'application/json' },
+                body: JSON.stringify({ send_id: sendId, message: message })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'Could not save message edit');
+            const item = pendingMessages.find(candidate => candidate.send_id === sendId);
+            if (item) item.message = data.message.message;
+            editor.value = data.message.message;
+            editor.readOnly = true;
+            button.textContent = 'Saved';
+            setStatus('Message updated and locked. It is still pending and has not been sent.');
+            window.setTimeout(() => { button.textContent = 'Edit message'; }, 1500);
+        } catch (error) {
+            setStatus(error.message, true);
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function loadPending() {
+        try {
+            const response = await fetch('/api/outreach/pending', { headers: { 'Accept': 'application/json' } });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Could not load pending messages');
+            pendingMessages = data.messages || [];
+            document.getElementById('selectAll').checked = true;
+            renderMessages();
+            setStatus('');
+        } catch (error) {
+            setStatus(error.message, true);
+        }
+    }
+
+    function toggleAll(checked) {
+        document.querySelectorAll('.send-check').forEach(box => { box.checked = checked; });
+    }
+
+    async function submitSelection(endpoint) {
+        const sendIds = Array.from(document.querySelectorAll('.send-check:checked')).map(box => box.value);
+        if (!sendIds.length) {
+            setStatus('Select at least one message first.', true);
+            return;
+        }
+        const isConfirm = endpoint.endsWith('confirm');
+        if (isConfirm && !window.confirm(`Confirm sending ${sendIds.length} selected patient message(s)?`)) return;
+        try {
+            await getCsrfToken();
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, 'Accept': 'application/json' },
+                body: JSON.stringify({ send_ids: sendIds })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'Operation failed');
+            const completed = (data.results || []).filter(item => item.status === (isConfirm ? 'sent' : 'cancelled')).length;
+            setStatus(`${isConfirm ? 'Processed' : 'Cancelled'} ${completed} selected message(s).`);
+            await loadPending();
+        } catch (error) {
+            setStatus(error.message, true);
+        }
+    }
+
+    window.addEventListener('load', loadPending);
+</script>
+</body>
+</html>
