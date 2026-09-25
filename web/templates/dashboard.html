@@ -79,6 +79,16 @@
             background: #38a169;
             transform: translateY(-2px);
         }
+
+        .btn-danger {
+            background: #e53e3e;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c53030;
+            transform: translateY(-2px);
+        }
         
         .btn-upload {
             background: #ed8936;
@@ -547,7 +557,7 @@
             <p>Intelligent agent for dental clinic patient recall management</p>
             <div class="controls">
                 <button class="btn btn-primary" onclick="runDailyCycle()">▶️ Run Daily Cycle</button>
-                <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh Data</button>
+                <button class="btn btn-danger" onclick="clearPatientData()">🧹 Clear view</button>
                 <button class="btn btn-upload" onclick="showUploadModal()">📤 Upload Patient List</button>
                 <button class="btn btn-primary" onclick="showConfigModal()">Configure Urgency Rules</button>
                 <button class="btn btn-primary" onclick="window.location.href='/staff/calendar'">📅 Follow-up Calendar</button>
@@ -577,7 +587,7 @@
                 <div class="label">Appointments scheduled</div>
             </div>
         </div>
-        
+
         <div class="content-grid">
             <div class="panel">
                 <h2>📋 Active Follow-up Cases</h2>
@@ -667,7 +677,7 @@
                 loadEscalations()
             ]);
         }
-        
+
         async function loadStatus() {
             try {
                 const response = await fetch('/api/status');
@@ -676,7 +686,7 @@
                 document.getElementById('activeCases').textContent = data.total_active_cases || 0;
                 document.getElementById('criticalCases').textContent = data.cases_by_urgency?.critical || 0;
                 document.getElementById('escalatedCases').textContent = data.escalated_cases || 0;
-                document.getElementById('bookedCases').textContent = data.cases_by_status?.booked || 0;
+                document.getElementById('bookedCases').textContent = data.calendar_booked_count || 0;
             } catch (error) {
                 console.error('Error loading status:', error);
             }
@@ -1338,6 +1348,50 @@
             }, duration);
         }
         
+        async function clearPatientData() {
+            const btn = event.target;
+            const confirmed = window.confirm(
+                'This permanently deletes all patients, appointment requests, related appointment audit rows, active cases, pending messages, escalations, and portal links. Staff accounts and clinic settings will remain. Continue?'
+            );
+            if (!confirmed) return;
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Clearing...';
+            try {
+                const csrfResponse = await fetch('/api/calendar/csrf-token', {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const csrfData = await csrfResponse.json();
+                if (!csrfResponse.ok || !csrfData.csrf_token) {
+                    throw new Error(csrfData.error || 'Admin login is required to clear patient data');
+                }
+
+                const response = await fetch('/api/admin/clear-patient-data', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': csrfData.csrf_token,
+                        'Accept': 'application/json'
+                    }
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'Could not clear patient data');
+                }
+
+                alert(
+                    `✅ Patient data cleared.\n` +
+                    `${result.patients_deleted} patients deleted.\n` +
+                    `${result.appointments_deleted} appointment requests deleted.`
+                );
+                await refreshData();
+            } catch (error) {
+                alert(`❌ Clear view failed: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🧹 Clear view';
+            }
+        }
+
         async function runDailyCycle() {
             const btn = event.target;
             btn.disabled = true;

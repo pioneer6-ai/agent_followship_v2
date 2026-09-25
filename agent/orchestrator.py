@@ -359,6 +359,25 @@ class FollowUpAgentOrchestrator:
         elif context == "booking confirmation":
             case.add_to_log(f"Sent booking confirmation via {outcome.channel.value}")
 
+    def reset_runtime_state(self) -> Dict[str, int]:
+        """Clear patient-related in-memory state after a database reset."""
+        with self._pending_sends_lock:
+            pending_count = len(self._pending_sends)
+            self._pending_sends.clear()
+
+        escalation_count = len(self.escalation_handler.escalated_cases)
+        active_case_count = len(self.active_cases)
+        undelivered_count = len(self.undelivered)
+        self.active_cases.clear()
+        self.undelivered.clear()
+        self.escalation_handler.escalated_cases.clear()
+        return {
+            "active_cases_cleared": active_case_count,
+            "pending_messages_cleared": pending_count,
+            "escalations_cleared": escalation_count,
+            "undelivered_records_cleared": undelivered_count,
+        }
+
     def get_pending_send_count(self) -> int:
         """Return the number of patient messages awaiting confirmation."""
         return len(self.get_pending_sends())
@@ -1010,8 +1029,13 @@ class FollowUpAgentOrchestrator:
             print(f"   🧠 {patient.name}: model chose {action.value} "
                   f"({decision.rationale})")
         if action == AgentAction.SEND_REMINDER:
-            # Compose personalized message
-            message_type = "urgent" if case.urgency.value == "critical" else "initial"
+            # Compose personalized message. Patients with recorded no-shows get
+            # the no-show template, which appends their own portal booking URL.
+            # Normal overdue patients keep the existing initial/urgent message.
+            if patient.no_show_history > 0:
+                message_type = "no_show"
+            else:
+                message_type = "urgent" if case.urgency.value == "critical" else "initial"
             message = self.message_composer.compose(case, message_type)
 
             self._queue_outbound_message(
