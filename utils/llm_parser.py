@@ -10,6 +10,7 @@ data structures automatically.
 import json
 import csv
 import io
+import os
 from datetime import date, datetime, timedelta
 from typing import List, Dict, Any, Optional
 import re
@@ -55,10 +56,19 @@ class LLMPatientParser:
         
         Args:
             use_llm: Whether to use actual LLM API (requires API key)
-            api_key: API key for LLM service (OpenAI, Claude, etc.)
+            api_key: API key for LLM service. If None, reads from env vars:
+                     AGENT_LLM_API_KEY -> LLM_API_KEY -> OPENAI_API_KEY
         """
         self.use_llm = use_llm
-        self.api_key = api_key
+        # Resolve API key from env if not provided
+        self.api_key = (
+            api_key
+            or os.environ.get("AGENT_LLM_API_KEY")
+            or os.environ.get("LLM_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
+        self.base_url = os.environ.get("AGENT_LLM_BASE_URL") or None
+        self.model = os.environ.get("AGENT_LLM_MODEL") or "gpt-4o-mini"
     
     def parse_file(self, file_content: bytes, filename: str) -> List[Dict[str, Any]]:
         """
@@ -88,13 +98,18 @@ class LLMPatientParser:
         text = content.decode('utf-8')
         csv_file = io.StringIO(text)
         reader = csv.DictReader(csv_file)
-        
+
         rows = list(reader)
         if not rows:
             return []
-        
-        # Use LLM or rule-based mapping to standardize fields
-        return [self._standardize_patient_data(row) for row in rows]
+
+        if self.use_llm and self.api_key:
+            try:
+                return self._parse_all_with_llm(rows)
+            except Exception as e:
+                print(f"[llm_parser] LLM batch parse failed, falling back to rules: {e}")
+
+        return [self._rule_based_standardize(row) for row in rows]
     
     def _parse_excel(self, content: bytes, filename: str = "") -> List[Dict[str, Any]]:
         """
@@ -140,8 +155,15 @@ class LLMPatientParser:
                     for index in range(min(len(header), len(values)))
                     if header[index]
                 }
-                patients.append(self._standardize_patient_data(record))
-            return patients
+                patients.append(record)
+
+            if self.use_llm and self.api_key and patients:
+                try:
+                    return self._parse_all_with_llm(patients)
+                except Exception as e:
+                    print(f"[llm_parser] LLM batch parse failed, falling back to rules: {e}")
+
+            return [self._rule_based_standardize(p) for p in patients]
         finally:
             workbook.close()
     
@@ -158,8 +180,14 @@ class LLMPatientParser:
             patients = data.get('patients', data.get('data', data.get('records', [data])))
         else:
             raise ValueError("Unexpected JSON structure")
-        
-        return [self._standardize_patient_data(p) for p in patients]
+
+        if self.use_llm and self.api_key and patients:
+            try:
+                return self._parse_all_with_llm(patients)
+            except Exception as e:
+                print(f"[llm_parser] LLM batch parse failed, falling back to rules: {e}")
+
+        return [self._rule_based_standardize(p) for p in patients]
     
     def _parse_text(self, content: bytes) -> List[Dict[str, Any]]:
         """
@@ -180,7 +208,7 @@ class LLMPatientParser:
             line = line.strip()
             if not line:
                 if current_patient:
-                    patients.append(self._standardize_patient_data(current_patient))
+                    patients.append(current_patient)
                     current_patient = {}
                 continue
             
@@ -194,22 +222,208 @@ class LLMPatientParser:
                 current_patient.setdefault('raw_text', []).append(line)
         
         if current_patient:
-            patients.append(self._standardize_patient_data(current_patient))
-        
-        return patients
+            patients.append(current_patient)
+
+        if self.use_llm and self.api_key and patients:
+            try:
+                return self._parse_all_with_llm(patients)
+            except Exception as e:
+                print(f"[llm_parser] LLM batch parse failed, falling back to rules: {e}")
+
+        return [self._rule_based_standardize(p) for p in patients]
     
     def _standardize_patient_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Standardize patient data to our schema using intelligent field mapping.
-        
-        This is where LLM integration would be most valuable - it can:
-        1. Map field names regardless of naming conventions
-        2. Extract information from free text
-        3. Handle missing data intelligently
-        4. Parse dates in any format
-        5. Infer treatment types from descriptions
+        Standardize a single record. Used only for the single-record fallback path.
+        Batch files go through _parse_all_with_llm instead.
         """
-        
+        return self._rule_based_standardize(raw_data)
+
+    def _parse_with_llm_api(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        NOT used directly — batch parsing is handled by _parse_all_with_llm.
+        This exists as a single-record fallback only.
+        """
+        return self._parse_all_with_llm([raw_data])[0]
+
+    def _parse_all_with_llm(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        ONE LLM call for the entire file.
+
+        Strategy:
+        1. Collect every unique field name and sample values across all records.
+        2. Ask the LLM to benchmark/classify each field name -> what category it
+           actually holds (name, phone, email, date, treatment, id, interval,
+           noshows, language, unknown).
+        3. Apply that field-type map to every record deterministically — no more
+           LLM calls needed per record.
+
+        This costs exactly 1 API call regardless of how many patients are in
+        the file, staying well within free-tier quota limits.
+        """
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError(
+                "The 'openai' package is required for LLM parsing. "
+                "Install it with: pip install openai"
+            )
+
+        client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+        # --- Step 1: Build a sample of all field names + example values ---
+        field_samples: Dict[str, List[str]] = {}
+        for record in records:
+            for key, val in record.items():
+                if val is not None and str(val).strip():
+                    field_samples.setdefault(key, [])
+                    if len(field_samples[key]) < 3:   # max 3 samples per field
+                        field_samples[key].append(str(val).strip())
+
+        # --- Step 2: Ask LLM to classify each field name ---
+        field_list = json.dumps(field_samples, indent=2, ensure_ascii=False)
+
+        prompt = f"""You are a medical data schema analyst.
+
+Below is a dictionary where each key is a field name from a patient data file,
+and the value is a list of sample values found in that field across multiple records.
+The field LABELS may be wrong or completely random — the VALUES are real patient data.
+
+Your task: For each field name, classify what the VALUES actually represent.
+
+Categories:
+- "patient_id"       : alphanumeric ID codes like "PT-001", "A00192", "P99012"
+- "name"             : human full names like "John Smith", "Tan Wei Ming"
+- "phone"            : phone numbers (digits, +, dashes, spaces) — NOT email
+- "email"            : strings containing @ symbol
+- "whatsapp"         : phone numbers designated for WhatsApp
+- "last_visit_date"  : dates in any format
+- "treatment_type"   : medical/dental procedure names
+- "recall_interval_days" : small integers representing days (7–365)
+- "no_show_history"  : very small integers (0–10) representing missed appointments
+- "language"         : 2-letter language codes (en, ms, zh) or language names
+- "unknown"          : anything that doesn't fit above
+
+Field names and sample values:
+{field_list}
+
+Return ONLY a valid JSON object mapping each field name to its category. Example:
+{{
+  "patient_id": "name",
+  "name": "phone",
+  "phone": "email",
+  ...
+}}
+
+Return only the JSON object, no explanation."""
+
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=512,
+            temperature=0,
+        )
+
+        raw_response = response.choices[0].message.content.strip()
+        if raw_response.startswith("```"):
+            raw_response = re.sub(r"^```[a-z]*\n?", "", raw_response)
+            raw_response = re.sub(r"\n?```$", "", raw_response)
+
+        field_type_map: Dict[str, str] = json.loads(raw_response)
+        print(f"[llm_parser] Field type map inferred: {field_type_map}")
+
+        # --- Step 3: Apply field_type_map to every record ---
+        results = []
+        for record in records:
+            results.append(self._apply_field_map(record, field_type_map))
+        return results
+
+    def _apply_field_map(
+        self, record: Dict[str, Any], field_type_map: Dict[str, str]
+    ) -> Dict[str, Any]:
+        """
+        Use the LLM-inferred field_type_map to build a standardized patient
+        dict from one raw record. Pure deterministic logic — no LLM calls.
+        """
+        # Bucket values by their inferred category
+        buckets: Dict[str, List[str]] = {}
+        for key, val in record.items():
+            category = field_type_map.get(key, "unknown")
+            if val is not None and str(val).strip():
+                buckets.setdefault(category, []).append(str(val).strip())
+
+        def first(cat: str) -> Optional[str]:
+            vals = buckets.get(cat, [])
+            return vals[0] if vals else None
+
+        # Build contact_info
+        contact_info: Dict[str, str] = {}
+        phone = first("phone")
+        email = first("email")
+        whatsapp = first("whatsapp")
+        if phone:
+            contact_info["sms"] = phone
+            contact_info["phone_call"] = phone
+        if whatsapp:
+            contact_info["whatsapp"] = whatsapp
+        elif phone:
+            contact_info["whatsapp"] = phone
+        if email:
+            contact_info["email"] = email
+
+        # Parse last visit date
+        last_visit_date = self._parse_date(first("last_visit_date"))
+
+        # Recall interval — must be a sensible integer
+        raw_interval = first("recall_interval_days")
+        try:
+            recall_interval = int(raw_interval) if raw_interval else None
+            if recall_interval and not (7 <= recall_interval <= 730):
+                recall_interval = None
+        except (ValueError, TypeError):
+            recall_interval = None
+
+        # No-show history — must be a small integer
+        raw_noshows = first("no_show_history")
+        try:
+            no_shows = int(raw_noshows) if raw_noshows else 0
+            if no_shows > 20:
+                no_shows = 0
+        except (ValueError, TypeError):
+            no_shows = 0
+
+        treatment_raw = first("treatment_type")
+        treatment = self._normalize_treatment_type(treatment_raw)
+
+        if recall_interval is None:
+            recall_interval = self._default_recall_interval(treatment)
+
+        # days_overdue
+        if isinstance(last_visit_date, date):
+            days_since = (date.today() - last_visit_date).days
+            days_overdue = max(0, days_since - recall_interval)
+        else:
+            days_overdue = 0
+
+        standardized = {
+            "patient_id": first("patient_id") or self._generate_patient_id(),
+            "name": first("name") or "Unknown Patient",
+            "contact_info": contact_info,
+            "preferred_channel": "sms",
+            "last_visit_date": last_visit_date.isoformat() if isinstance(last_visit_date, date) else str(last_visit_date),
+            "treatment_type": treatment,
+            "recall_interval_days": recall_interval,
+            "no_show_history": no_shows,
+            "language": first("language") or "en",
+            "days_overdue": days_overdue,
+        }
+        return standardized
+
+    def _rule_based_standardize(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Rule-based fallback: maps fields by trying known synonym key names.
+        Used when use_llm=False or when the LLM call fails.
+        """
         # Normalize keys (make lowercase and remove special chars)
         normalized = {k.lower().replace(' ', '_').replace('-', '_'): v 
                       for k, v in raw_data.items()}
@@ -383,12 +597,10 @@ class LLMPatientParser:
     
     def parse_with_llm(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Use actual LLM to parse patient data (future implementation).
-        
-        This would send the raw data to an LLM with a prompt like:
-        "Extract patient information from this data and return it in JSON format
-        with fields: patient_id, name, contact_info, last_visit_date, treatment_type..."
+        Use actual LLM to parse patient data.
+        Calls the Gemini/OpenAI-compatible API to extract correct fields
+        even when values are in wrong keys.
         """
-        # Placeholder for LLM integration
-        # In production, would call OpenAI/Claude API here
-        return self._standardize_patient_data(raw_data)
+        if self.api_key:
+            return self._parse_with_llm_api(raw_data)
+        return self._rule_based_standardize(raw_data)

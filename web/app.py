@@ -18,6 +18,16 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Load .env before anything else so API keys are available at module init
+# time (from origin/master's feature/processing-messdata) - this only
+# loads environment variables earlier; it does not send email itself and
+# does not change which calendar/data store this module wires up below.
+try:
+    from hospital_setup import load_dotenv as _load_dotenv
+    _load_dotenv()
+except Exception:
+    pass  # Safe to skip if hospital_setup is unavailable
+
 from flask import Flask, render_template, jsonify, request
 from datetime import date, datetime, timedelta
 import json
