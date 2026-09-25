@@ -214,9 +214,22 @@ class TestPerceivingSendFailure:
             },
             preferred=ContactChannel.SMS,
         )
+        # Outbound reminders are queued for staff confirmation rather than
+        # sent immediately (see agent/orchestrator.py's _queue_outbound_message);
+        # register the case so confirm_pending_sends can find it, exactly as
+        # run_daily_cycle would before staff acts on the queue.
+        agent.active_cases[case.patient.patient_id] = case
 
         decision = ActionDecision(AgentAction.SEND_REMINDER, "due for a reminder")
         agent._execute_action(case, decision, date(2026, 6, 1))
+
+        # Nothing has actually been sent yet - it is only queued.
+        assert backend.calls == []
+        assert case.status is not CaseStatus.MESSAGE_SENT
+
+        pending = agent.get_pending_sends()
+        assert len(pending) == 1
+        agent.confirm_pending_sends([pending[0]["send_id"]])
 
         assert backend.calls == [ContactChannel.SMS, ContactChannel.WHATSAPP]
         assert case.status is CaseStatus.MESSAGE_SENT
@@ -243,9 +256,18 @@ class TestPerceivingSendFailure:
             },
             preferred=ContactChannel.SMS,
         )
+        agent.active_cases[case.patient.patient_id] = case
 
         decision = ActionDecision(AgentAction.SEND_REMINDER, "due for a reminder")
         agent._execute_action(case, decision, date(2026, 6, 1))
+
+        # Queued only, so no delivery attempt and no escalation yet.
+        assert backend.calls == []
+        assert case.status is not CaseStatus.ESCALATED
+
+        pending = agent.get_pending_sends()
+        assert len(pending) == 1
+        agent.confirm_pending_sends([pending[0]["send_id"]])
 
         assert backend.calls == [ContactChannel.SMS, ContactChannel.EMAIL]
         # Crucially, NOT message_sent, and NOT a silent success.
@@ -383,11 +405,17 @@ class TestReminderProgression:
         )
         agent = make_agent(backend, policy=policy)
         case = make_case(preferred=ContactChannel.SMS)
+        agent.active_cases[case.patient.patient_id] = case
         today = date(2026, 6, 1)
 
         for _ in range(3):
             decision = agent._decide_for_case(case, today)
             agent._execute_action(case, decision, today)
+            # SEND_REMINDER only queues the message; reminder_count/status
+            # advance once staff confirms the queued send (see
+            # agent/orchestrator.py's confirm_pending_sends).
+            for pending in agent.get_pending_sends():
+                agent.confirm_pending_sends([pending["send_id"]])
 
         assert case.reminder_count == 3
         assert case.status is CaseStatus.MESSAGE_SENT
@@ -412,6 +440,7 @@ class TestReminderProgression:
         backend = ScriptedBackend()
         agent = make_agent(backend, policy=policy)
         case = make_case(preferred=ContactChannel.SMS)
+        agent.active_cases[case.patient.patient_id] = case
         today = date(2026, 6, 1)
 
         actions = []
@@ -419,6 +448,11 @@ class TestReminderProgression:
             decision = agent._decide_for_case(case, today)
             actions.append(decision.action)
             agent._execute_action(case, decision, today)
+            # Advance state the same way staff confirmation would, so the
+            # decision engine sees the real reminder_count/status on the
+            # next iteration instead of a case frozen at "queued".
+            for pending in agent.get_pending_sends():
+                agent.confirm_pending_sends([pending["send_id"]])
 
         assert actions[:3] == [AgentAction.SEND_REMINDER] * 3
         assert AgentAction.ESCALATE_TO_STAFF in actions[3:]
@@ -841,6 +875,11 @@ class TestStateSurvivesAcrossCycles:
         counts = []
         for week in range(5):
             cases = agent.run_daily_cycle(today + timedelta(days=7 * week))
+            # run_daily_cycle only queues the reminder for staff confirmation;
+            # reminder_count/status only advance once staff confirms the
+            # queued send (see agent/orchestrator.py's confirm_pending_sends).
+            for pending in agent.get_pending_sends():
+                agent.confirm_pending_sends([pending["send_id"]])
             counts.append(cases[0].reminder_count)
 
         assert counts == [1, 2, 3, 3, 3], (
@@ -858,6 +897,8 @@ class TestStateSurvivesAcrossCycles:
 
         for week in range(5):
             cases = agent.run_daily_cycle(today + timedelta(days=7 * week))
+            for pending in agent.get_pending_sends():
+                agent.confirm_pending_sends([pending["send_id"]])
 
         case = cases[0]
         assert case.status is CaseStatus.ESCALATED
@@ -878,6 +919,8 @@ class TestStateSurvivesAcrossCycles:
         today = date.today()
 
         agent.run_daily_cycle(today)
+        for pending in agent.get_pending_sends():
+            agent.confirm_pending_sends([pending["send_id"]])
         cases = agent.run_daily_cycle(today + timedelta(days=7))
 
         assert cases[0].reminder_count == 1
@@ -927,6 +970,8 @@ class TestEscalationAlertsStaff:
         today = date.today()
 
         agent.run_daily_cycle(today)
+        for pending in agent.get_pending_sends():
+            agent.confirm_pending_sends([pending["send_id"]])
         agent.run_daily_cycle(today + timedelta(days=7))
 
         alerts = [

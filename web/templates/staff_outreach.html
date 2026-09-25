@@ -25,16 +25,16 @@
         .message-top input { margin-top: 4px; width: 18px; height: 18px; }
         .patient { font-size: 18px; font-weight: 700; }
         .meta { color: #546e7a; font-size: 14px; margin-top: 6px; }
+        /* Per-severity colour-coded urgency tags (from master). */
         .tag { display: inline-block; border-radius: 12px; padding: 3px 9px; margin-right: 5px; font-size: 12px; font-weight: 700; text-transform: lowercase; }
         .tag-critical { background: #fee2e2; color: #b91c1c; }
-        .tag-high { background: #ffedd5; color: #c2410c; }
-        .tag-medium { background: #fef3c7; color: #92400e; }
-        .tag-low { background: #dcfce7; color: #166534; }
+        .tag-high     { background: #ffedd5; color: #c2410c; }
+        .tag-medium   { background: #fef3c7; color: #92400e; }
+        .tag-low      { background: #dcfce7; color: #166534; }
         .preview { width: calc(100% - 30px); min-height: 120px; resize: vertical; white-space: pre-wrap; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 13px; margin: 14px 0 0 30px; line-height: 1.45; font: inherit; }
         .preview:read-only { background: #eceff1; color: #455a64; cursor: not-allowed; }
         .save-message { margin: 8px 0 0 30px; background: #546e7a; color: white; padding: 7px 11px; font-size: 12px; }
         .save-message:hover { background: #37474f; }
-        .portal-link { display: block; margin: 8px 0 0 30px; color: #1565c0; font-weight: 600; }
         .empty { text-align: center; background: white; padding: 45px; border-radius: 8px; color: #607d8b; }
         #status { margin: 10px 0; min-height: 20px; }
         .error { color: #c62828; }
@@ -98,24 +98,37 @@
         return node;
     }
 
-    function extractPortalUrl(message) {
-        const match = String(message || '').match(/(?:https?:\/\/[^\s]+)?\/patient\/[A-Za-z0-9_-]+/);
-        return match ? match[0].replace(/[.,)]+$/, '') : '';
-    }
-
-    function renderPortalLink(container, message) {
+    // NO_SHOW-only rendering: the message body already contains
+    // "Reschedule My Appointment: <url>" (see agent/notifications.py's
+    // compose()). Instead of showing that raw URL, this replaces the
+    // WHOLE "Reschedule My Appointment: <url>" line with a single
+    // clickable link labelled just "Reschedule My Appointment" - the URL
+    // itself is never shown in the read-only preview, and there is no
+    // separate button/link element. Reuses the URL already present in
+    // the message; never generates or looks up another token. Falls back
+    // to the generic renderMessageContent if that exact line is not
+    // found (e.g. after a manual edit), so nothing breaks.
+    function renderNoShowPreview(container, message) {
         container.textContent = '';
-        const url = extractPortalUrl(message);
-        if (!url) return;
+        const text = String(message || '');
+        const lineMatch = text.match(/^(Reschedule My Appointment:\s*)(\S+)(.*)$/m);
+        if (!lineMatch) {
+            renderMessageContent(container, text);
+            return;
+        }
+        const [fullLine, label, url] = lineMatch;
+        const lineStart = text.indexOf(fullLine);
+        const before = text.slice(0, lineStart);
+        const after = text.slice(lineStart + label.length + url.length);
 
+        if (before) container.appendChild(document.createTextNode(before));
         const link = document.createElement('a');
-        link.className = 'portal-link';
-        link.href = url;
+        link.href = url.replace(/[.,)]+$/, '');
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
-        link.textContent = '🔗 Open patient booking page';
-        link.title = url;
+        link.textContent = 'Reschedule My Appointment';
         container.appendChild(link);
+        if (after) container.appendChild(document.createTextNode(after));
     }
 
     function renderMessageContent(container, message) {
@@ -186,6 +199,7 @@
             addText(details, 'div', item.patient_name, 'patient');
             addText(details, 'div', `Patient ID: ${item.patient_id} · Recipient: ${item.recipient || 'No recipient found'}`, 'meta');
             addText(details, 'div', `${item.created_at} · scheduled for ${item.scheduled_for}`, 'meta');
+            // Per-severity colour-coded urgency tag (from master).
             const category = document.createElement('div');
             category.style.marginTop = '8px';
             const urgency = ['critical', 'high', 'medium', 'low'].includes(item.urgency)
@@ -196,9 +210,15 @@
             top.appendChild(details);
             card.appendChild(top);
 
+            const isNoShow = item.context === 'no_show';
+
             const preview = document.createElement('div');
             preview.className = 'preview';
-            renderMessageContent(preview, item.message);
+            if (isNoShow) {
+                renderNoShowPreview(preview, item.message);
+            } else {
+                renderMessageContent(preview, item.message);
+            }
             card.appendChild(preview);
 
             const editor = document.createElement('textarea');
@@ -207,10 +227,6 @@
             editor.style.display = 'none';
             editor.setAttribute('aria-label', `Edit message for ${item.patient_name}`);
             card.appendChild(editor);
-
-            const portalLink = document.createElement('div');
-            renderPortalLink(portalLink, item.message);
-            card.appendChild(portalLink);
 
             const saveButton = document.createElement('button');
             saveButton.className = 'save-message';
@@ -222,7 +238,7 @@
                     saveButton.textContent = 'Save message edit';
                     editor.focus();
                 } else {
-                    updateMessage(item.send_id, editor.value, saveButton, editor, portalLink, preview);
+                    updateMessage(item.send_id, editor.value, saveButton, editor, preview, isNoShow);
                 }
             });
             card.appendChild(saveButton);
@@ -230,7 +246,7 @@
         });
     }
 
-    async function updateMessage(sendId, message, button, editor, portalLink, preview) {
+    async function updateMessage(sendId, message, button, editor, preview, isNoShow) {
         if (!message.trim()) {
             setStatus('Message cannot be empty.', true);
             return;
@@ -250,8 +266,11 @@
             editor.value = data.message.message;
             editor.style.display = 'none';
             preview.style.display = 'block';
-            renderMessageContent(preview, data.message.message);
-            renderPortalLink(portalLink, data.message.message);
+            if (isNoShow) {
+                renderNoShowPreview(preview, data.message.message);
+            } else {
+                renderMessageContent(preview, data.message.message);
+            }
             button.textContent = 'Saved';
             setStatus('Message updated and locked. It is still pending and has not been sent.');
             window.setTimeout(() => { button.textContent = 'Edit message'; }, 1500);

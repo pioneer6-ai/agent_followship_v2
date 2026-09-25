@@ -13,6 +13,7 @@ class AppointmentStatus(str, Enum):
     CANCELLED = 'cancelled'
     EXPIRED = 'expired'
     COMPLETED = 'completed'
+    NO_SHOW = 'no_show'
 
 
 ACTIVE_APPOINTMENT_STATUSES = (
@@ -518,6 +519,143 @@ class SchedulingDatabase:
                 LIMIT 1
             ''', (patient_id, AppointmentStatus.CANCELLED.value,
                   AppointmentStatus.EXPIRED.value)).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def get_overdue_confirmed_appointment_for_patient(
+        self, patient_id: str, now_utc: str, grace_period_minutes: int
+    ) -> Optional[Dict]:
+        """
+        The patient's most recent CONFIRMED appointment that is now past
+        its no-show grace period - i.e. a REAL, current no-show: an
+        appointment the clinic actually booked and confirmed, that the
+        patient has still not attended by
+        ``appointment_datetime + grace_period_minutes``, and that was
+        never marked COMPLETED, CANCELLED, or rescheduled.
+
+        This is a DATETIME comparison against the clinic's current
+        instant (``now_utc``, from Clock.now() - never date.today() or a
+        date-only comparison), per the required rule:
+        ``now >= appointment_datetime + no_show_grace_period_minutes``.
+        A 2:00 PM confirmed appointment with the default 30-minute grace
+        period is NOT a no-show at 2:29 PM, and IS one at exactly 2:30 PM.
+
+        This is intentionally distinct from two other things already in
+        this system that are NOT reliable no-show signals:
+          - PatientRecord.no_show_history (core/models.py) is a bare
+            historical counter, unlinked to any specific appointment -
+            it must never be used to decide TODAY's follow-up email
+            content, only to weight urgency scoring over time.
+          - get_last_non_active_appointment_for_patient (this class) looks
+            at CANCELLED/EXPIRED rows as a heuristic for slot-ranking
+            preference only (see its own docstring) - a cancelled booking
+            is not necessarily a missed one.
+
+        A CONFIRMED row past its grace period, by contrast, means the
+        clinic held a slot for this patient and the patient's status was
+        never updated away from CONFIRMED - the closest true signal this
+        schema can express for "the patient did not attend."
+
+        Args:
+            patient_id: Patient to check.
+            now_utc: The clinic's current instant, as an ISO 8601 UTC
+                timestamp (matching slot_datetime_utc's own format).
+            grace_period_minutes: Minutes of grace after the appointment's
+                scheduled datetime before it counts as a no-show.
+
+        Returns:
+            The full appointment_requests row (as a dict) for the most
+            recent such appointment, or None if the patient has none.
+        """
+        conn = self.get_connection()
+        try:
+            rows = conn.execute('''
+                SELECT * FROM appointment_requests
+                WHERE patient_id = ? AND status = ?
+                ORDER BY slot_datetime_utc DESC
+            ''', (patient_id, AppointmentStatus.CONFIRMED.value)).fetchall()
+
+            now = datetime.fromisoformat(now_utc)
+            if now.tzinfo is None:
+                now = now.replace(tzinfo=timezone.utc)
+
+            for row in rows:
+                appt_dt = datetime.fromisoformat(row['slot_datetime_utc'])
+                if appt_dt.tzinfo is None:
+                    appt_dt = appt_dt.replace(tzinfo=timezone.utc)
+                grace_deadline = appt_dt + timedelta(minutes=grace_period_minutes)
+                if now >= grace_deadline:
+                    return dict(row)
+            return None
+        finally:
+            conn.close()
+
+    def mark_appointment_no_show(self, appt_id: int, actor: str = 'system') -> bool:
+        """
+        Transition a CONFIRMED appointment to NO_SHOW. This is the ONLY
+        way an appointment's status becomes NO_SHOW, and it happens
+        EXACTLY ONCE per appointment: the ``WHERE status = ?`` guard
+        (matching the same idempotent pattern as complete_appointment/
+        approve_appointment) means a second call against an
+        already-NO_SHOW row is a silent no-op that returns False, so the
+        same appointment can never repeatedly trigger duplicate no-show
+        follow-ups from re-detecting "it's still overdue."
+
+        Only a CONFIRMED row can transition here - COMPLETED, CANCELLED,
+        DECLINED, EXPIRED, and already-NO_SHOW rows are never touched,
+        satisfying "attended/rescheduled/cancelled states must never
+        transition to NO_SHOW."
+
+        Args:
+            appt_id: The appointment_requests.id to transition.
+            actor: Who/what triggered this - 'system' for the automatic
+                orchestrator-driven detection, or a staff username for a
+                manual override.
+
+        Returns:
+            True if this call performed the transition (i.e. the row was
+            CONFIRMED); False if it was already something else (including
+            already NO_SHOW) or does not exist.
+        """
+        now_str = datetime.now(timezone.utc).isoformat()
+        conn = self.get_connection()
+        try:
+            conn.execute('''
+                UPDATE appointment_requests SET
+                    status = ?,
+                    updated_at = ?
+                WHERE id = ? AND status = ?
+            ''', (AppointmentStatus.NO_SHOW.value, now_str, appt_id, AppointmentStatus.CONFIRMED.value))
+
+            if conn.total_changes > 0:
+                conn.execute('''
+                    INSERT INTO audit_log (appointment_request_id, action, actor, timestamp)
+                    VALUES (?, ?, ?, ?)
+                ''', (appt_id, 'no_show', actor, now_str))
+                conn.commit()
+                return True
+            return False
+        finally:
+            conn.close()
+
+    def get_no_show_appointment_for_patient(self, patient_id: str) -> Optional[Dict]:
+        """
+        The patient's most recent NO_SHOW appointment, if any - used to
+        confirm a transition has already been persisted (rather than
+        re-deriving no-show status from an overdue CONFIRMED row forever).
+
+        Returns:
+            The full appointment_requests row (as a dict), or None.
+        """
+        conn = self.get_connection()
+        try:
+            row = conn.execute('''
+                SELECT * FROM appointment_requests
+                WHERE patient_id = ? AND status = ?
+                ORDER BY slot_datetime_utc DESC
+                LIMIT 1
+            ''', (patient_id, AppointmentStatus.NO_SHOW.value)).fetchone()
             return dict(row) if row else None
         finally:
             conn.close()

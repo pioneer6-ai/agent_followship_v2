@@ -354,6 +354,76 @@ class SchedulingDatabaseCalendarAdapter(CalendarIntegration):
             datetime_utc=row["slot_datetime_utc"],
         )
 
+    def has_missed_appointment(
+        self,
+        patient_id: str,
+        now: datetime,
+        *,
+        grace_period_minutes: int = 30,
+    ) -> bool:
+        """
+        True if this patient has a REAL, current no-show: a CONFIRMED
+        appointment that is now past ``appointment_datetime +
+        grace_period_minutes`` (per the required rule ``now >=
+        appointment_datetime + no_show_grace_period_minutes`` - a
+        DATETIME comparison against the clinic's current instant, never
+        a date-only comparison against "today"), that was never marked
+        COMPLETED, CANCELLED, or rescheduled. See
+        SchedulingDatabase.get_overdue_confirmed_appointment_for_patient
+        for why this is the correct signal and not
+        PatientRecord.no_show_history (a historical counter, not tied to
+        any specific appointment) or get_last_missed_slot_hint above (a
+        CANCELLED/EXPIRED ranking heuristic, not a true no-show).
+
+        Side effect: the FIRST time a qualifying appointment is found,
+        this PERSISTS the transition to NO_SHOW in scheduling.db (via
+        SchedulingDatabase.mark_appointment_no_show) rather than merely
+        inferring no-show status afresh on every call. Because that
+        transition only ever applies to a still-CONFIRMED row, calling
+        this again for the same appointment is a no-op on the DB side
+        (it is already NO_SHOW) - the same appointment can never
+        repeatedly trigger a fresh transition or duplicate follow-up
+        purely from re-detection. Once persisted, a patient with an
+        existing NO_SHOW row still reports True here (so their next
+        SEND_REMINDER cycle - itself throttled independently by
+        reminder_interval_days/case state - keeps composing
+        message_type="no_show" instead of silently reverting to a normal
+        recall message), but no second DB write occurs.
+
+        This is the ONLY thing that should drive whether a follow-up
+        message is composed as message_type="no_show" (see
+        agent/orchestrator.py's SEND_REMINDER handling).
+
+        Args:
+            patient_id: Patient to check.
+            now: The clinic's current instant (from Clock.now() - a
+                timezone-aware datetime, never date.today()).
+            grace_period_minutes: Minutes of grace after the scheduled
+                datetime before it counts as a no-show. Defaults to 30,
+                matching ClinicPolicyConfig.no_show_grace_period_minutes's
+                own default; callers with a policy should pass
+                ``policy.no_show_grace_period_minutes`` explicitly.
+
+        Returns:
+            True if a qualifying (now-NO_SHOW) appointment exists.
+        """
+        now_utc = now.astimezone(timezone.utc)
+        overdue_row = self.db.get_overdue_confirmed_appointment_for_patient(
+            patient_id, now_utc.isoformat(), grace_period_minutes
+        )
+        if overdue_row is not None:
+            # Still CONFIRMED and past grace period - transition it. The
+            # DB-level status guard makes this a one-time event per row.
+            self.db.mark_appointment_no_show(overdue_row['id'], actor=self.requested_by)
+            return True
+
+        # Not currently overdue-and-CONFIRMED - but may already have been
+        # transitioned by an earlier cycle. Check the persisted status
+        # itself rather than re-deriving it, so the same qualifying
+        # appointment keeps being reported (for follow-up email purposes)
+        # without ever re-writing the DB.
+        return self.db.get_no_show_appointment_for_patient(patient_id) is not None
+
     def book_appointment(
         self, patient_id: str, appointment_date: date, treatment_type: str
     ) -> bool:
