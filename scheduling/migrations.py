@@ -379,10 +379,80 @@ class Migration002AddSourceColumn(Migration):
         conn.execute('DROP TABLE appointment_requests_backup')
 
 
+class Migration003AddPatientsTable(Migration):
+    """
+    Add the `patients` table: the persistent Patient Master Database.
+
+    Before this migration, uploaded/imported patients only ever lived in
+    MockPatientDataStore's in-memory dict (core/data_access.py) - every
+    Flask restart silently lost them. This makes patients persist in the
+    SAME scheduling.db file appointments already use (no second database),
+    via SqlitePatientDataStore (core/data_access.py).
+
+    Schema notes:
+      - One column per ContactChannel (contact_sms/contact_whatsapp/
+        contact_email/contact_phone_call) rather than a single JSON blob,
+        so normalized_email/normalized_phone can be indexed directly for
+        duplicate-matching (see SqlitePatientDataStore.import_patient).
+      - normalized_email/normalized_phone are derived, lowercased/digits-
+        only copies used ONLY for duplicate lookup - the original,
+        human-readable contact_* values are never mutated.
+      - last_contacted folds in what MockPatientDataStore kept in a
+        separate `_last_contacted` dict, onto the same row.
+      - No FOREIGN KEY to appointment_requests.patient_id: matching the
+        existing schema (appointment_requests has no FK on patient_id
+        either - see Migration002's own tables), and appointments must
+        keep working by patient_id even for patients imported before this
+        migration ran, or seeded directly by tests.
+    """
+    version = 3
+    description = "Add patients table (persistent Patient Master Database)"
+
+    def verify(self, conn: sqlite3.Connection) -> Tuple[bool, str]:
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='patients'"
+        )
+        if cursor.fetchone() is not None:
+            return False, "Table patients already exists"
+        return True, ""
+
+    def up(self, conn: sqlite3.Connection):
+        conn.execute('''
+            CREATE TABLE patients (
+                patient_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                contact_sms TEXT,
+                contact_whatsapp TEXT,
+                contact_email TEXT,
+                contact_phone_call TEXT,
+                normalized_email TEXT,
+                normalized_phone TEXT,
+                preferred_channel TEXT NOT NULL,
+                last_visit_date TEXT NOT NULL,
+                treatment_type TEXT NOT NULL,
+                recall_interval_days INTEGER NOT NULL,
+                no_show_history INTEGER NOT NULL DEFAULT 0,
+                language TEXT NOT NULL DEFAULT 'en',
+                opted_out INTEGER NOT NULL DEFAULT 0,
+                last_contacted TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        ''')
+        conn.execute('CREATE INDEX idx_patients_normalized_email ON patients(normalized_email)')
+        conn.execute('CREATE INDEX idx_patients_normalized_phone ON patients(normalized_phone)')
+
+    def down(self, conn: sqlite3.Connection):
+        conn.execute('DROP INDEX IF EXISTS idx_patients_normalized_email')
+        conn.execute('DROP INDEX IF EXISTS idx_patients_normalized_phone')
+        conn.execute('DROP TABLE IF EXISTS patients')
+
+
 # Registry of all migrations
 MIGRATIONS: List[Migration] = [
     # Migration001AddStaffColumn(),  # Example - not currently needed
     Migration002AddSourceColumn(),
+    Migration003AddPatientsTable(),
 ]
 
 

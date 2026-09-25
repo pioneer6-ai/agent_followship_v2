@@ -11,7 +11,7 @@ resolution or escalation.
 
 import os
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from core.clock import Clock, SystemClock
 from core.models import FollowUpCase, CaseStatus, ContactChannel
@@ -84,6 +84,7 @@ class FollowUpAgentOrchestrator:
         clock: Optional[Clock] = None,
         policy_guard: Optional[PolicyGuard] = None,
         trigger_service: Optional[TriggerService] = None,
+        portal_link_provider: Optional[Callable[[str], str]] = None,
     ):
         """
         Initialize the agent orchestrator with all required subsystems.
@@ -109,6 +110,16 @@ class FollowUpAgentOrchestrator:
                 agent/policy_guard.py.
             trigger_service: Decides which cases are actionable today. Defaults
                 to a TriggerService built from the same clock.
+            portal_link_provider: Optional ``patient_id -> Patient Portal URL``
+                callable, forwarded to MessageComposerAgent so follow-up
+                reminder emails/messages can embed a patient-specific
+                "Manage My Appointment" link. Reuses the exact same
+                token-issuing logic as the staff-facing
+                ``/api/patients/<id>/portal-link`` route (see
+                web/patient_portal_auth.py's ``build_portal_link_provider``)
+                - never a second token system, never an HTTP call back into
+                the Flask app. Left ``None`` (the default), reminders are
+                composed exactly as before this feature existed.
         """
         # Store dependencies
         self.data_store = data_store
@@ -124,7 +135,10 @@ class FollowUpAgentOrchestrator:
         self.urgency_scorer = UrgencyScorer(self.urgency_config, self.policy)
 
         # Initialize communication components
-        self.message_composer = MessageComposerAgent()
+        self.message_composer = MessageComposerAgent(
+            portal_link_provider=portal_link_provider,
+            booking_window_days=self.policy.booking_window_days,
+        )
         self.conversation_manager = ConversationManager()
 
         # Initialize notification channels

@@ -13,7 +13,7 @@ which keeps the offline demo and the live provider paths behind one interface.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 from agent.delivery import (
     DeliveryBackend,
@@ -299,16 +299,45 @@ class MessageComposerAgent:
     template-based generation.
     """
 
-    def __init__(self, use_llm: bool = False, llm_api_key: Optional[str] = None):
+    def __init__(
+        self,
+        use_llm: bool = False,
+        llm_api_key: Optional[str] = None,
+        portal_link_provider: Optional[Callable[[str], str]] = None,
+        booking_window_days: int = 7,
+    ):
         """
         Initialize message composer.
 
         Args:
             use_llm: Whether to use LLM for message generation
             llm_api_key: API key for LLM service (if use_llm=True)
+            portal_link_provider: Optional ``patient_id -> portal URL``
+                callable. When given, AND ``message_type == "no_show"``
+                (see ``_compose_with_template``), the message embeds a
+                patient-specific "Reschedule My Appointment" link built
+                from it. Every OTHER message_type ("initial", "reminder",
+                "urgent") never embeds a link, even when this is set -
+                having a provider configured is necessary but not
+                sufficient; the message must actually be a no-show
+                follow-up. This is a plain Python function, never an HTTP
+                call - see web/patient_portal_auth.py's
+                ``build_portal_link_provider``, which is the one
+                implementation of this callable shape web/app.py actually
+                wires in, reusing the SAME token logic the staff-facing
+                ``/api/patients/<id>/portal-link`` route uses. Left
+                ``None`` (the default), no message ever embeds a link -
+                which is what every existing caller/test that doesn't pass
+                this argument still gets.
+            booking_window_days: How many days ahead the portal shows
+                available times for - only used in the no-show portal
+                sentence, when portal_link_provider is set AND
+                message_type == "no_show".
         """
         self.use_llm = use_llm
         self.llm_api_key = llm_api_key
+        self.portal_link_provider = portal_link_provider
+        self.booking_window_days = booking_window_days
 
     def compose(self, case: FollowUpCase, message_type: str = "initial") -> str:
         """
@@ -373,6 +402,12 @@ class MessageComposerAgent:
                 f"We have several time slots available. "
                 f"Would you like to schedule a visit?"
             )
+        elif message_type == "no_show":
+            body = (
+                f"We noticed you missed your {treatment.lower()} appointment. "
+                f"No worries - let's get you rescheduled. "
+                f"We'd love to see you as soon as it's convenient for you."
+            )
         else:  # urgent
             body = (
                 f"We're concerned about your overdue {treatment.lower()} appointment. "
@@ -383,8 +418,27 @@ class MessageComposerAgent:
         # Add call-to-action
         cta = "Reply to this message or call us to book your appointment."
 
+        sections = [greeting, body, cta]
+
+        # Patient-specific self-service link - ONLY for NO_SHOW follow-ups.
+        # A configured portal_link_provider is necessary but NOT sufficient
+        # on its own; every other message_type ("initial", "reminder",
+        # "urgent") must stay byte-for-byte identical to before this
+        # no-show-specific link existed, even when a provider is set.
+        if message_type == "no_show" and self.portal_link_provider is not None:
+            portal_url = self.portal_link_provider(patient.patient_id)
+            portal_section = (
+                f"Reschedule My Appointment: {portal_url}\n\n"
+                f"The page shows real available times for the next "
+                f"{self.booking_window_days} days. If none of them work, "
+                f"you can choose \"remind me next week\" instead."
+            )
+            sections.append(portal_section)
+
+        sections.append("Best regards,\nYour Dental Care Team")
+
         # Compose complete message
-        message = f"{greeting}\n\n{body}\n\n{cta}\n\nBest regards,\nYour Dental Care Team"
+        message = "\n\n".join(sections)
 
         return message
 
