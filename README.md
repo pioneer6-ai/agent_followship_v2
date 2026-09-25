@@ -1120,6 +1120,9 @@ endpoints below are relative to that. `GET /` serves the dashboard page itself.
 | GET | `/api/urgency-config` | Get current urgency configuration |
 | POST | `/api/urgency-config` | Save new urgency configuration |
 | POST | `/api/urgency-config/preview` | Preview urgency configuration changes |
+| GET | `/api/llm-status` | Get current LLM configuration/status |
+| POST | `/api/llm-status/check` | Check LLM availability/status |
+| POST | `/api/admin/clear-patient-data` | Clear patient data through the admin endpoint |
 
 ### GET /api/status
 Get agent statistics and operational metrics.

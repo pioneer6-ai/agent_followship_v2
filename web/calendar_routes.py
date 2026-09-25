@@ -605,45 +605,21 @@ def complete_appointment(appointment_id, **kwargs):
             'error': f'Cannot complete appointment with status: {appointment["status"]}'
         }), 400
     
-    # Mark as completed
-    conn = _scheduling_db.get_connection()
-    try:
-        conn.execute('''
-            UPDATE appointment_requests
-            SET status = ?, updated_at = ?
-            WHERE id = ?
-        ''', (AppointmentStatus.COMPLETED.value, datetime.now(timezone.utc).isoformat(), appointment_id))
-        
-        # Add audit log
-        conn.execute('''
-            INSERT INTO audit_log (
-                timestamp, action, actor, appointment_request_id, details
-            ) VALUES (?, ?, ?, ?, ?)
-        ''', (
-            datetime.now(timezone.utc).isoformat(),
-            'appointment_completed',
-            actor,
-            appointment_id,
-            notes or 'Appointment marked as completed'
-        ))
-        
-        conn.commit()
-        
-        updated = _scheduling_db.get_appointment(appointment_id)
-        return jsonify({
-            'success': True,
-            'message': 'Appointment marked as completed',
-            'appointment': updated
-        })
-        
-    except Exception as e:
-        conn.rollback()
-        return jsonify({
-            'success': False,
-            'error': f'Failed to complete appointment: {str(e)}'
-        }), 500
-    finally:
-        conn.close()
+    result = _calendar_service.complete_appointment(
+        appointment_id,
+        actor,
+        notes=notes,
+    )
+    if not result['success']:
+        status_code = 404 if result.get('error') == 'Appointment not found' else 400
+        return jsonify(result), status_code
+
+    updated = _scheduling_db.get_appointment(appointment_id)
+    return jsonify({
+        'success': True,
+        'message': 'Appointment marked as completed',
+        'appointment': updated
+    })
 
 
 @calendar_bp.route('/appointments', methods=['POST'])
