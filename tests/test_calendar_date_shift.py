@@ -118,24 +118,48 @@ def authenticated_client(client, auth_db):
 # Date Shift Regression Tests
 # ============================================================================
 
+def _next_working_day_september_25(after_year: int) -> date:
+    """
+    The next September 25 (strictly after `after_year`) that falls on a
+    working weekday (Mon-Fri, matching this fixture's scheduling_db
+    config). Computed relative to "today" rather than a hardcoded
+    calendar year, so this test can never go stale the way the literal
+    '2026-09-25' date did once that real date passed - the booking
+    route's past-date validation (web/calendar_routes.py) is production
+    logic this test must not weaken or bypass, and is intentionally left
+    untouched.
+    """
+    year = after_year + 1
+    while date(year, 9, 25).weekday() >= 5:  # 5=Saturday, 6=Sunday
+        year += 1
+    return date(year, 9, 25)
+
+
 def test_september_25_click_creates_september_25_booking(authenticated_client, scheduling_db):
     """
-    CRITICAL REGRESSION TEST: Clicking September 25 must create booking on Sept 25.
-    
+    CRITICAL REGRESSION TEST: Clicking September 25 must create a booking on
+    September 25 - not September 24 - regardless of which September 25 that
+    happens to be. The test picks a September 25 guaranteed to be in the
+    future (see _next_working_day_september_25), so it stays deterministic
+    without depending on the literal date value, which is incidental to the
+    actual regression being guarded here.
+
     Before fix: toISOString() in Asia/Singapore (UTC+8) would convert:
-        - Local: Sept 25, 2026 00:00:00 (midnight)
-        - UTC:   Sept 24, 2026 16:00:00
-        - Result: "2026-09-24" stored/displayed
-    
+        - Local: Sept 25 00:00:00 (midnight)
+        - UTC:   Sept 24 16:00:00
+        - Result: the previous day stored/displayed
+
     After fix: formatDate() uses local components:
-        - Local: Sept 25, 2026 00:00:00
-        - Result: "2026-09-25" (no UTC conversion)
+        - Local: Sept 25 00:00:00
+        - Result: Sept 25 (no UTC conversion)
     """
-    # Create a booking for September 25, 2026 (a Thursday)
+    slot_date = _next_working_day_september_25(date.today().year)
+
+    # Create a booking for a future September 25 (a working weekday).
     booking_data = {
         'patient_id': 'P001',
         'patient_name': 'Test Patient',
-        'slot_date': '2026-09-25',
+        'slot_date': slot_date.isoformat(),
         'slot_session': 'morning',
         'slot_time': '09:00',
         'follow_up_reason': 'Test booking for date shift regression'
@@ -155,8 +179,8 @@ def test_september_25_click_creates_september_25_booking(authenticated_client, s
     appointment = response.get_json()['appointment']
     
     # CRITICAL ASSERTION: slot_date must be exactly what was sent
-    assert appointment['slot_date'] == '2026-09-25', \
-        f"Date shift detected! Expected '2026-09-25', got '{appointment['slot_date']}'"
+    assert appointment['slot_date'] == slot_date.isoformat(), \
+        f"Date shift detected! Expected '{slot_date.isoformat()}', got '{appointment['slot_date']}'"
     
     # Verify other fields are correct
     assert appointment['slot_time'] == '09:00'

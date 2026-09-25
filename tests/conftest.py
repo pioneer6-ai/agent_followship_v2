@@ -202,3 +202,58 @@ def conversation_manager():
     from agent.conversation import ConversationManager
 
     return ConversationManager()
+
+
+# ---------------------------------------------------------------------------
+# Test-database isolation for anything that imports web.app.
+#
+# web/app.py opens the REAL project files at IMPORT TIME:
+#     scheduling_db = SchedulingDatabase(str(_app_dir / 'scheduling.db'))
+#     auth_db = AuthDatabase(str(_app_dir / 'auth.db'))
+# Any test file doing `from web.app import ...` (test_patient_portal.py,
+# test_patient_portal_slot_times.py, test_patient_portal_loading_regression.py,
+# test_portal_link_in_reminders.py, test_web_upload.py) therefore shares that
+# SAME module-level scheduling_db instance - and several of those tests reset
+# their own state between runs with `DELETE FROM appointment_requests`
+# (and patients/audit_log/blocked_periods), which was deleting rows from the
+# real ./scheduling.db every time the suite ran.
+#
+# The fix redirects web.app.scheduling_db to a fresh tmp_path_factory file the
+# very first time web.app is imported in the test session, before any test's
+# own reset fixture can run a single DELETE. `calendar` and `data_store` in
+# web.app both wrap this SAME scheduling_db instance, so redirecting its
+# db_path (and re-running init_schema against the new path) transparently
+# redirects everything downstream too - no production code changes.
+#
+# `redirect_web_app_databases` is autouse, so it applies with zero changes to
+# the test files themselves and cannot be bypassed by importing web.app in a
+# different order.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session", autouse=True)
+def redirect_web_app_databases(tmp_path_factory):
+    """
+    Point web.app's module-level scheduling_db/auth_db at throwaway files
+    for the whole test session, so nothing under tests/ can ever read,
+    write, or delete from the real ./scheduling.db or ./auth.db.
+    """
+    try:
+        import web.app as _web_app
+    except Exception:
+        # web.app isn't importable in this environment (e.g. missing an
+        # optional dependency) - nothing to redirect, and whichever test
+        # actually needs it will fail on its own import with a clear error.
+        yield
+        return
+
+    isolated_dir = tmp_path_factory.mktemp("web_app_isolated_dbs")
+
+    _web_app.scheduling_db.db_path = str(isolated_dir / "scheduling.db")
+    _web_app.scheduling_db.init_schema()
+    # calendar/data_store hold a reference to this same scheduling_db
+    # object, so nothing else needs to be reassigned.
+
+    _web_app.auth_db.db_path = str(isolated_dir / "auth.db")
+    _web_app.auth_db._init_schema()
+
+    yield
