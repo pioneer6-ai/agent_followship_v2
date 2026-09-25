@@ -51,7 +51,12 @@ from core.preview_engine import PreviewEngine
 from agent.business_rules import UrgencyScorer
 
 # Import calendar components
-from web.auth import AuthDatabase
+from web.auth import (
+    AuthDatabase,
+    require_auth,
+    require_role,
+    require_csrf,
+)
 from web.calendar_routes import calendar_bp, init_calendar_routes
 from web.staff_routes import staff_bp, init_staff_routes
 from scheduling.database import SchedulingDatabase
@@ -146,6 +151,99 @@ app.register_blueprint(staff_bp)
 app.config['AUTH_DB'] = auth_db
 
 
+@app.route('/staff/outreach')
+@require_auth
+@require_role('staff', 'admin')
+def staff_outreach_page(**kwargs):
+    """Render the staff confirmation page for patient-facing messages."""
+    return render_template(
+        'staff_outreach.html',
+        user=kwargs.get('_auth_user'),
+    )
+
+
+@app.route('/api/outreach/pending')
+@require_auth
+@require_role('staff', 'admin')
+def get_pending_outreach(**kwargs):
+    """Return patient messages waiting for staff confirmation."""
+    return jsonify({
+        'success': True,
+        'messages': agent.get_pending_sends(),
+    })
+
+
+@app.route('/api/outreach/update', methods=['POST'])
+@require_auth
+@require_role('staff', 'admin')
+@require_csrf
+def update_outreach(**kwargs):
+    """Edit a pending patient message before confirmation."""
+    data = request.get_json(silent=True) or {}
+    send_id = data.get('send_id')
+    message = data.get('message')
+    if not isinstance(send_id, str) or not send_id.strip():
+        return jsonify({
+            'success': False,
+            'error': 'send_id is required',
+        }), 400
+    if not isinstance(message, str):
+        return jsonify({
+            'success': False,
+            'error': 'message must be a string',
+        }), 400
+
+    user_info = kwargs.get('_auth_user') or {}
+    result = agent.update_pending_send(
+        send_id.strip(),
+        message,
+        edited_by=user_info.get('username'),
+    )
+    if result.get('status') == 'invalid':
+        return jsonify({'success': False, **result}), 400
+    if result.get('status') == 'not_found':
+        return jsonify({'success': False, **result}), 404
+    if result.get('status') != 'pending':
+        return jsonify({'success': False, **result}), 409
+    return jsonify({'success': True, 'message': result})
+
+
+@app.route('/api/outreach/confirm', methods=['POST'])
+@require_auth
+@require_role('staff', 'admin')
+@require_csrf
+def confirm_outreach(**kwargs):
+    """Send only the selected patient messages after staff confirmation."""
+    data = request.get_json(silent=True) or {}
+    send_ids = data.get('send_ids')
+    if not isinstance(send_ids, list) or not all(isinstance(item, str) for item in send_ids):
+        return jsonify({
+            'success': False,
+            'error': 'send_ids must be a list of message IDs',
+        }), 400
+
+    results = agent.confirm_pending_sends(send_ids)
+    return jsonify({'success': True, 'results': results})
+
+
+@app.route('/api/outreach/cancel', methods=['POST'])
+@require_auth
+@require_role('staff', 'admin')
+@require_csrf
+def cancel_outreach(**kwargs):
+    """Cancel only the selected pending patient messages."""
+    data = request.get_json(silent=True) or {}
+    send_ids = data.get('send_ids')
+    if not isinstance(send_ids, list) or not all(isinstance(item, str) for item in send_ids):
+        return jsonify({
+            'success': False,
+            'error': 'send_ids must be a list of message IDs',
+        }), 400
+
+    results = agent.cancel_pending_sends(send_ids)
+    return jsonify({'success': True, 'results': results})
+
+
 @app.route('/')
 def index():
     """Render the main dashboard page."""
@@ -178,7 +276,7 @@ def is_safe_url(target):
         return False
     
     # Permitted paths
-    allowed_paths = ['/', '/staff/calendar', '/staff/login']
+    allowed_paths = ['/', '/staff/calendar', '/staff/login', '/staff/outreach']
     
     # Check if target matches allowed paths or starts with them
     return any(target == path or target.startswith(path + '?') for path in allowed_paths)
@@ -443,11 +541,22 @@ def run_cycle():
     """
     try:
         today = date.today()
+        pending_before = {
+            item['send_id'] for item in agent.get_pending_sends()
+        }
         processed_cases = agent.run_daily_cycle(today)
-        
+        pending_after = agent.get_pending_sends()
+        queued_count = sum(
+            1 for item in pending_after
+            if item['send_id'] not in pending_before
+        )
+
         return jsonify({
             'success': True,
             'cases_processed': len(processed_cases),
+            'queued_count': queued_count,
+            'pending_count': len(pending_after),
+            'confirmation_url': '/staff/outreach' if queued_count else None,
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
@@ -811,10 +920,23 @@ def import_patients():
 
         imported_count = inserted_count + updated_count
 
-        # After importing, automatically run a cycle to process new/updated patients
+        # After importing, automatically run a cycle to queue new/updated
+        # patient messages for staff review - the cycle only QUEUES
+        # messages (see FollowUpAgentOrchestrator._queue_outbound_message);
+        # nothing is transmitted until staff explicitly confirms from the
+        # /staff/outreach page.
+        queued_count = 0
         if imported_count > 0:
-            print(f"\n🔄 Running agent cycle to process {imported_count} imported patients...")
+            print(f"\n🔄 Running agent cycle to queue messages for {imported_count} imported patients...")
+            pending_before = {
+                item['send_id'] for item in agent.get_pending_sends()
+            }
             agent.run_daily_cycle(date.today())
+            pending_after = agent.get_pending_sends()
+            queued_count = sum(
+                1 for item in pending_after
+                if item['send_id'] not in pending_before
+            )
 
         return jsonify({
             'success': True,
@@ -827,6 +949,9 @@ def import_patients():
             'skipped_count': 0,
             'duplicate_patients': [],
             'updated_patients': updated_patients,
+            'queued_count': queued_count,
+            'pending_count': len(agent.get_pending_sends()),
+            'confirmation_url': '/staff/outreach' if queued_count else None,
         })
     
     except Exception as e:

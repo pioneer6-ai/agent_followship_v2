@@ -551,6 +551,7 @@
                 <button class="btn btn-upload" onclick="showUploadModal()">📤 Upload Patient List</button>
                 <button class="btn btn-primary" onclick="showConfigModal()">Configure Urgency Rules</button>
                 <button class="btn btn-primary" onclick="window.location.href='/staff/calendar'">📅 Follow-up Calendar</button>
+                <button class="btn btn-warning" onclick="window.location.href='/staff/outreach'">✉️ Review Messages</button>
             </div>
         </div>
         
@@ -1112,6 +1113,18 @@
                 const result = await response.json();
                 
                 if (result.success) {
+                    if (result.queued_count > 0) {
+                        showNotification(
+                            `Imported ${result.imported_count} patient(s). ${result.queued_count} patient message(s) are waiting for your confirmation. Open Review Messages when ready.`,
+                            'warning'
+                        );
+                        closeUploadModal();
+                        await refreshData();
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                        return;
+                    }
+
                     const uploadMessage = document.getElementById('uploadMessage');
                     
                     // Check if there were any duplicates
@@ -1337,7 +1350,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Daily cycle completed!\n${result.cases_processed} cases processed.`);
+                    const reviewMessage = result.queued_count > 0
+                        ? `\n${result.queued_count} patient message(s) are waiting for confirmation.`
+                        : '';
+                    alert(`✅ Daily cycle completed!\n${result.cases_processed} cases processed.${reviewMessage}`);
                     await refreshData();
                 } else {
                     alert(`❌ Error: ${result.error}`);
