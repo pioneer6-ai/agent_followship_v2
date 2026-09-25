@@ -719,7 +719,8 @@ def create_appointment(**kwargs):
         slot_time=data['slot_time'],
         requested_by=actor,
         follow_up_case_id=data.get('follow_up_case_id'),
-        follow_up_reason=data.get('follow_up_reason')
+        follow_up_reason=data.get('follow_up_reason'),
+        source='staff',
     )
     
     if result['success']:

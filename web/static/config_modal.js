@@ -233,8 +233,8 @@ function displayPreview(preview) {
                     ${c.patient_name} (${c.days_overdue} days overdue)
                 </div>
                 <div class="preview-change">
-                    ${c.old_urgency.toUpperCase()} ? ${c.new_urgency.toUpperCase()}
-                    ${c.increased ? '??' : '??'}
+                    ${c.old_urgency.toUpperCase()} -> ${c.new_urgency.toUpperCase()}
+                    ${c.increased ? 'increased' : 'decreased'}
                 </div>
                 <div style="font-size: 11px; color: #999; margin-top: 5px;">
                     ${c.new_explanation}

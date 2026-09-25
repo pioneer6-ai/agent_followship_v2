@@ -383,6 +383,12 @@ def _third_party_by_scope() -> Tuple[Dict[str, Set[str]], Set[str]]:
             for name in os.listdir(path):
                 if name.endswith(".py"):
                     local.add(name[:-3])
+    # Root-level modules (see _ROOT_MODULES/_project_sources above) are also
+    # local, not third-party - e.g. web/app.py importing hospital_setup for
+    # its load_dotenv() helper must not be flagged as an unpinned dependency.
+    for name in _ROOT_MODULES:
+        if name.endswith(".py"):
+            local.add(name[:-3])
 
     def top_level(module: str) -> str:
         return module.split(".")[0]

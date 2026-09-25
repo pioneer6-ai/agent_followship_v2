@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Your Appointment</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 24px;
+        }
+
+        .card h1 { color: #333; font-size: 26px; margin-bottom: 6px; }
+        .card p.subtitle { color: #666; font-size: 15px; margin-bottom: 4px; }
+
+        .status-pill {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            background: #edf2f7;
+            color: #4a5568;
+        }
+        .status-pill.booked { background: #c6f6d5; color: #22543d; }
+        .status-pill.pending { background: #feebc8; color: #7b341e; }
+
+        h2 { color: #333; font-size: 18px; margin-bottom: 14px; }
+
+        .slot-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+
+        .slot-btn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            font-size: 15px;
+            color: #333;
+            transition: all 0.15s;
+            text-align: left;
+        }
+        .slot-btn:hover { border-color: #667eea; background: #f7f8ff; }
+        .slot-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .date-group { margin-bottom: 4px; }
+        .date-group .date-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+        .time-btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .time-btn {
+            padding: 10px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            transition: all 0.15s;
+        }
+        .time-btn:hover { border-color: #667eea; background: #f7f8ff; }
+        .time-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .slot-section-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin: 4px 0 2px;
+        }
+        .slot-section-label.secondary { color: #a0aec0; }
+
+        .btn {
+            padding: 12px 22px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+        .btn-secondary { background: #edf2f7; color: #4a5568; margin-top: 4px; }
+        .btn-secondary:hover { background: #e2e8f0; }
+
+        .feedback {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .feedback.success { background: #c6f6d5; color: #22543d; }
+        .feedback.error { background: #fed7d7; color: #822727; }
+        .feedback.info { background: #bee3f8; color: #2a4365; }
+
+        .chat-log {
+            max-height: 260px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .chat-msg {
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            max-width: 85%;
+        }
+        .chat-msg.patient { align-self: flex-end; background: #667eea; color: white; }
+        .chat-msg.assistant { align-self: flex-start; background: #f0f0f5; color: #333; }
+        .chat-msg .category-tag {
+            display: block;
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .chat-input-row { display: flex; gap: 8px; }
+        .chat-input-row input {
+            flex: 1;
+            padding: 12px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .chat-input-row button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .disclaimer { color: #a0aec0; font-size: 12px; margin-top: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Hi {{ patient_name }} 👋</h1>
+            <p class="subtitle">Pick a time that works for you below.</p>
+            <span id="status-pill" class="status-pill">Loading...</span>
+        </div>
+
+        <div class="card">
+            <h2>Available appointment times</h2>
+            <div id="slot-list" class="slot-list">
+                <p style="color:#999;">Loading available times...</p>
+            </div>
+            <button class="btn btn-secondary" id="no-suitable-slot-btn">
+                None of these times work — remind me next week
+            </button>
+            <div id="booking-feedback"></div>
+        </div>
+
+        <div class="card">
+            <h2>Questions? Ask our assistant</h2>
+            <div id="chat-log" class="chat-log"></div>
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" placeholder="Ask about your appointment or general dental care...">
+                <button id="chat-send-btn">Send</button>
+            </div>
+            <p class="disclaimer">
+                This assistant does not diagnose or give personal medical advice.
+                For anything urgent, please contact the clinic directly.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const ACCESS_TOKEN = {{ access_token | tojson }};
+        const BASE = `/api/patient-portal/${ACCESS_TOKEN}`;
+
+        const statusPill = document.getElementById('status-pill');
+        const slotList = document.getElementById('slot-list');
+        const bookingFeedback = document.getElementById('booking-feedback');
+        const noSlotBtn = document.getElementById('no-suitable-slot-btn');
+        const chatLog = document.getElementById('chat-log');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+
+        function setStatusPill(status) {
+            statusPill.textContent = status.replace(/_/g, ' ');
+            statusPill.className = 'status-pill';
+            if (status === 'booked') statusPill.classList.add('booked');
+            if (status === 'pending_future_availability') statusPill.classList.add('pending');
+        }
+
+        function showFeedback(container, text, kind) {
+            container.innerHTML = `<div class="feedback ${kind}">${text}</div>`;
+        }
+
+        async function loadStatus() {
+            const res = await fetch(`${BASE}/status`);
+            const data = await res.json();
+            if (data.success) setStatusPill(data.status);
+        }
+
+        function formatDateLabel(dateStr) {
+            return new Date(dateStr + 'T00:00:00').toLocaleDateString(
+                undefined, { weekday: 'long', month: 'long', day: 'numeric' }
+            );
+        }
+
+        function renderDateGroup(dateEntry) {
+            const group = document.createElement('div');
+            group.className = 'date-group';
+
+            const label = document.createElement('div');
+            label.className = 'date-label';
+            label.textContent = formatDateLabel(dateEntry.date);
+            group.appendChild(label);
+
+            const row = document.createElement('div');
+            row.className = 'time-btn-row';
+            dateEntry.times.forEach(t => {
+                const btn = document.createElement('button');
+                btn.className = 'time-btn';
+                btn.textContent = t.label;
+                btn.addEventListener('click', () => selectSlotOption(dateEntry.date, t.session, t.time, btn));
+                row.appendChild(btn);
+            });
+            group.appendChild(row);
+            return group;
+        }
+
+        async function loadSlots() {
+            const res = await fetch(`${BASE}/available-slots`);
+            const data = await res.json();
+            if (!data.success) {
+                slotList.innerHTML = '<p style="color:#999;">Could not load available times.</p>';
+                return;
+            }
+
+            // Detailed (date + session/time) shape - render per-date time
+            // buttons. Falls back to the legacy date-only shape when the
+            // calendar doesn't support slot-level detail.
+            if (Array.isArray(data.dates)) {
+                if (data.dates.length === 0) {
+                    slotList.innerHTML = '<p style="color:#999;">No times are currently available in the next '
+                        + data.booking_window_days + ' days.</p>';
+                    return;
+                }
+                slotList.innerHTML = '';
+
+                if (data.used_no_show_preference && data.preferred_dates && data.preferred_dates.length > 0) {
+                    const preferredLabel = document.createElement('div');
+                    preferredLabel.className = 'slot-section-label';
+                    preferredLabel.textContent = 'Closest to your usual time';
+                    slotList.appendChild(preferredLabel);
+                    data.preferred_dates.forEach(entry => slotList.appendChild(renderDateGroup(entry)));
+
+                    if (data.other_dates && data.other_dates.length > 0) {
+                        const otherLabel = document.createElement('div');
+                        otherLabel.className = 'slot-section-label secondary';
+                        otherLabel.textContent = 'Other available times';
+                        slotList.appendChild(otherLabel);
+                        data.other_dates.forEach(entry => slotList.appendChild(renderDateGroup(entry)));
+                    }
+                } else {
+                    data.dates.forEach(entry => slotList.appendChild(renderDateGroup(entry)));
+                }
+                return;
+            }
+
+            // Legacy date-only shape.
+            if (data.slots.length === 0) {
+                slotList.innerHTML = '<p style="color:#999;">No times are currently available in the next '
+                    + data.booking_window_days + ' days.</p>';
+                return;
+            }
+            slotList.innerHTML = '';
+            data.slots.forEach(dateStr => {
+                const btn = document.createElement('button');
+                btn.className = 'slot-btn';
+                btn.textContent = formatDateLabel(dateStr);
+                btn.addEventListener('click', () => selectSlot(dateStr, btn));
+                slotList.appendChild(btn);
+            });
+        }
+
+        async function selectSlotOption(dateStr, session, time, btn) {
+            document.querySelectorAll('.time-btn, .slot-btn').forEach(b => b.disabled = true);
+            const res = await fetch(`${BASE}/select-slot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ appointment_date: dateStr, session: session, time: time })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showFeedback(bookingFeedback, data.message, 'success');
+                setStatusPill(data.status);
+                slotList.innerHTML = '';
+                noSlotBtn.style.display = 'none';
+            } else {
+                showFeedback(bookingFeedback, data.message || data.error || 'Booking failed.', 'error');
+                await loadSlots(); // refresh in case the slot was taken
+            }
+        }
+
+        async function selectSlot(dateStr, btn) {
+            document.querySelectorAll('.slot-btn').forEach(b => b.disabled = true);
+            const res = await fetch(`${BASE}/select-slot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ appointment_date: dateStr })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showFeedback(bookingFeedback, data.message, 'success');
+                setStatusPill(data.status);
+                slotList.innerHTML = '';
+                noSlotBtn.style.display = 'none';
+            } else {
+                showFeedback(bookingFeedback, data.message || data.error || 'Booking failed.', 'error');
+                await loadSlots(); // refresh in case the slot was taken
+            }
+        }
+
+        noSlotBtn.addEventListener('click', async () => {
+            noSlotBtn.disabled = true;
+            const res = await fetch(`${BASE}/no-suitable-slot`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                showFeedback(bookingFeedback, data.message || data.error || 'Could not save your request. Please try again.', 'error');
+                noSlotBtn.disabled = false;
+                return;
+            }
+            showFeedback(bookingFeedback, data.message, 'info');
+            if (data.status) setStatusPill(data.status);
+            slotList.innerHTML = '<p style="color:#999;">We\'ll check back with you next week.</p>';
+            noSlotBtn.style.display = 'none';
+        });
+
+        function appendChatMessage(role, text, categoryTag) {
+            const el = document.createElement('div');
+            el.className = `chat-msg ${role}`;
+            el.textContent = text;
+            if (categoryTag) {
+                const tag = document.createElement('span');
+                tag.className = 'category-tag';
+                tag.textContent = categoryTag;
+                el.appendChild(tag);
+            }
+            chatLog.appendChild(el);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        async function sendChatMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+            appendChatMessage('patient', message);
+            chatInput.value = '';
+            chatSendBtn.disabled = true;
+
+            const res = await fetch(`${BASE}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
+            });
+            const data = await res.json();
+            chatSendBtn.disabled = false;
+            if (data.success) {
+                appendChatMessage('assistant', data.message, data.category);
+                if (data.is_emergency) {
+                    loadStatus();
+                }
+            } else {
+                appendChatMessage('assistant', 'Sorry, something went wrong. Please try again.');
+            }
+        }
+
+        chatSendBtn.addEventListener('click', sendChatMessage);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+
+        loadStatus();
+        loadSlots();
+    </script>
+</body>
+</html>

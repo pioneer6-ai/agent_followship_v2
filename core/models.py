@@ -54,6 +54,15 @@ class CaseStatus(Enum):
     BOOKED = "booked"                  # Successfully scheduled appointment
     DECLINED = "declined"              # Patient declined or postponed
     ESCALATED = "escalated"            # Transferred to staff for manual handling
+    OPTED_OUT = "opted_out"            # Patient asked not to be contacted again
+    PENDING_FUTURE_AVAILABILITY = "pending_future_availability"
+    # Patient engaged (e.g. via the patient portal) but no offered slot
+    # worked for them. NOT a decline and NOT a booking - the case is parked
+    # with `next_followup_at` set so TriggerService makes it actionable
+    # again once that date arrives. Unlike the terminal outreach statuses
+    # above, this one is NOT excluded from TriggerService's actionability
+    # check - it is specifically what schedules the case to be picked up
+    # again.
 
 
 @dataclass
@@ -74,6 +83,9 @@ class PatientRecord:
         recall_interval_days: Recommended days between visits for this treatment type
         no_show_history: Number of previous no-shows (affects priority scoring)
         language: Patient's preferred language for messages (default: English)
+        opted_out: Whether the patient has asked not to be contacted again.
+            Once set, PolicyGuard blocks all further outbound/booking actions
+            for this patient regardless of urgency or reminder cadence.
     """
     patient_id: str
     name: str
@@ -84,30 +96,30 @@ class PatientRecord:
     recall_interval_days: int
     no_show_history: int = 0
     language: str = "en"
+    opted_out: bool = False
 
 
 @dataclass
 class FollowUpCase:
     """
-    Represents a single follow-up case that requires agent action.
-    
-    This is the atomic unit of decision-making in the agent workflow.
-    Each case tracks a patient who needs follow-up and maintains the
-    conversation history and current status.
-    
+    Represents a single follow-up case requiring agent action.
+
     Attributes:
-        patient: Reference to the patient record
-        days_overdue: Number of days past the recommended recall date
-        urgency: Computed urgency level for prioritization
-        reason: Human-readable explanation for why follow-up is needed (for audit trail)
-        status: Current state in the workflow
-        conversation_log: History of all interactions with the patient
-        last_contacted: Date when the patient was last contacted
-        reminder_count: Number of reminders sent for this case
-        episode_id: Unique identifier for this recall episode (patient_id + last_visit_date)
-        consecutive_unanswered_reminders: Count of unanswered reminders in current episode
-        urgency_explanation: Explanation of urgency score
+        patient: Reference to the patient record.
+        days_overdue: Days past the recommended recall date.
+        urgency: Computed urgency level.
+        reason: Explanation of why follow-up is needed.
+        status: Current workflow state.
+        conversation_log: History of interactions.
+        last_contacted: Date of the latest contact.
+        reminder_count: Number of reminders sent.
+        episode_id: Identifier for this patient's recall episode.
+        consecutive_unanswered_reminders: Unanswered reminders in this episode.
+        urgency_explanation: Explanation of the urgency score.
+        next_followup_at: Explicit date to re-trigger this case, if set.
+            Used by TriggerService's basic re-trigger check.
     """
+
     patient: PatientRecord
     days_overdue: int
     urgency: UrgencyLevel
@@ -119,13 +131,17 @@ class FollowUpCase:
     episode_id: str = field(default="")
     consecutive_unanswered_reminders: int = 0
     urgency_explanation: str = ""
-    
+    next_followup_at: Optional[date] = None
+
     def __post_init__(self):
         if not self.episode_id:
-            self.episode_id = f"{self.patient.patient_id}_{self.patient.last_visit_date.isoformat()}"
-    
+            self.episode_id = (
+                f"{self.patient.patient_id}_"
+                f"{self.patient.last_visit_date.isoformat()}"
+            )
+
     def add_to_log(self, entry: str) -> None:
-        """Add a timestamped entry to the conversation log."""
+        """Add an entry to the conversation log."""
         self.conversation_log.append(entry)
 
 

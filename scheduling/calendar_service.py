@@ -164,7 +164,8 @@ class CalendarService:
                                 slot_datetime_utc: str, slot_date: str,
                                 slot_session: str, slot_time: str,
                                 requested_by: str, follow_up_case_id: Optional[str] = None,
-                                follow_up_reason: Optional[str] = None) -> Dict:
+                                follow_up_reason: Optional[str] = None,
+                                source: str = 'staff') -> Dict:
         """
         Atomically check capacity and create booking with comprehensive validation.
         
@@ -174,7 +175,14 @@ class CalendarService:
         - Prevents duplicate active requests from same patient for same slot
         - Enforces capacity limits atomically
         - Normalizes timestamps
-        
+
+        Args:
+            source: Who/what initiated this booking - 'staff' (default,
+                via the staff calendar) or 'patient_portal' (via
+                core.scheduling_calendar_adapter.SchedulingDatabaseCalendarAdapter).
+                Recorded on the appointment row for reporting/audit only;
+                does not change validation behavior.
+
         Returns:
             {'success': bool, 'appointment_id': int, 'expires_at': str} on success
             {'success': False, 'error': str} on failure
@@ -239,11 +247,11 @@ class CalendarService:
                 INSERT INTO appointment_requests
                 (patient_id, patient_name, follow_up_case_id, slot_date, slot_session,
                  slot_time, slot_datetime_utc, status, follow_up_reason, requested_by,
-                 expires_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 expires_at, source, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (patient_id, patient_name, follow_up_case_id, slot_date, slot_session,
                   slot_time, slot_datetime_utc, AppointmentStatus.PENDING.value,
-                  follow_up_reason, requested_by, expires_at.isoformat(), now_str, now_str))
+                  follow_up_reason, requested_by, expires_at.isoformat(), source, now_str, now_str))
             
             appt_id = cursor.lastrowid
             

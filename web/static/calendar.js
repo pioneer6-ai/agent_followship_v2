@@ -311,6 +311,10 @@ async function viewAppointment(id) {
                 <span class="detail-label">Time:</span>
                 <span class="detail-value">${appointment.slot_time} (${appointment.slot_session})</span>
             </div>
+            <div class="detail-row">
+                <span class="detail-label">Booked via:</span>
+                <span class="detail-value">${appointment.source === 'patient_portal' ? 'Patient Portal' : 'Staff'}</span>
+            </div>
             ${appointment.follow_up_reason ? `
             <div class="detail-row">
                 <span class="detail-label">Reason:</span>

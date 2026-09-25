@@ -67,6 +67,7 @@ class SchedulingDatabase:
                     declined_reason TEXT,
                     expires_at TEXT,
                     expired_at TEXT,
+                    source TEXT NOT NULL DEFAULT 'staff',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -88,7 +89,25 @@ class SchedulingDatabase:
                 
                 CREATE INDEX IF NOT EXISTS idx_audit_appointment ON audit_log(appointment_request_id);
             ''')
-            
+
+            # Idempotent guard for databases created before the `source`
+            # column existed (CREATE TABLE IF NOT EXISTS above is a no-op
+            # on an existing table, so a pre-existing scheduling.db needs
+            # this explicit ALTER TABLE to pick it up). Safe to run on
+            # every startup - it only acts when the column is missing.
+            existing_columns = {
+                row['name'] for row in conn.execute('PRAGMA table_info(appointment_requests)')
+            }
+            if 'source' not in existing_columns:
+                conn.execute('''
+                    ALTER TABLE appointment_requests
+                    ADD COLUMN source TEXT NOT NULL DEFAULT 'staff'
+                ''')
+                conn.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_appointments_source
+                    ON appointment_requests(source)
+                ''')
+
             cursor = conn.execute('SELECT COUNT(*) as count FROM clinic_config')
             if cursor.fetchone()['count'] == 0:
                 now = datetime.now(timezone.utc).isoformat()
@@ -165,13 +184,13 @@ class SchedulingDatabase:
                 INSERT INTO appointment_requests
                 (patient_id, patient_name, follow_up_case_id, slot_date, slot_session,
                  slot_time, slot_datetime_utc, status, follow_up_reason, requested_by,
-                 expires_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 expires_at, source, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (kwargs['patient_id'], kwargs['patient_name'], kwargs.get('follow_up_case_id'),
                   kwargs['slot_date'], kwargs['slot_session'], kwargs['slot_time'],
                   kwargs['slot_datetime_utc'], AppointmentStatus.PENDING.value,
                   kwargs.get('follow_up_reason'), kwargs['requested_by'],
-                  kwargs['expires_at'], now, now))
+                  kwargs['expires_at'], kwargs.get('source', 'staff'), now, now))
             appt_id = cursor.lastrowid
             
             conn.execute('''
@@ -362,6 +381,44 @@ class SchedulingDatabase:
         finally:
             conn.close()
     
+    def get_last_non_active_appointment_for_patient(self, patient_id: str) -> Optional[Dict]:
+        """
+        Most recent CANCELLED or EXPIRED appointment_requests row for this
+        patient, if any - the closest proxy the current schema has for "a
+        missed appointment", since there is no dedicated NO_SHOW status or
+        appointment-reference field anywhere in this system (PatientRecord.
+        no_show_history is a bare integer counter, not linked to any
+        specific appointment).
+
+        This is a heuristic, not a true no-show signal: a CANCELLED row can
+        also result from a patient legitimately cancelling in advance, not
+        only from missing an appointment. Callers using this for slot
+        preference/ranking should treat it as "the patient's last known
+        appointment session/time", not as a certainty that they no-showed.
+
+        "Most recent" is determined by slot_datetime_utc (the appointment's
+        own scheduled time), not created_at/updated_at - callers care about
+        which appointment time to use as a preference signal, not which
+        row was touched most recently.
+
+        Returns:
+            The full appointment_requests row (as a dict) with the latest
+            slot_datetime_utc among CANCELLED/EXPIRED rows for this patient,
+            or None if the patient has no such row.
+        """
+        conn = self.get_connection()
+        try:
+            row = conn.execute('''
+                SELECT * FROM appointment_requests
+                WHERE patient_id = ? AND status IN (?, ?)
+                ORDER BY slot_datetime_utc DESC
+                LIMIT 1
+            ''', (patient_id, AppointmentStatus.CANCELLED.value,
+                  AppointmentStatus.EXPIRED.value)).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
     def add_blocked_period(self, start: str, end: str, reason: str, created_by: str) -> int:
         now = datetime.now(timezone.utc).isoformat()
         conn = self.get_connection()

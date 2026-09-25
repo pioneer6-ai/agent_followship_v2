@@ -299,9 +299,90 @@ class Migration001AddStaffColumn(Migration):
         conn.execute('DROP TABLE appointment_requests_backup')
 
 
+class Migration002AddSourceColumn(Migration):
+    """
+    Add a `source` column to appointment_requests, distinguishing
+    patient-initiated bookings (Patient Portal) from staff-initiated ones
+    (Staff Calendar), so a query/report can tell the two apart without
+    inferring it from `follow_up_reason` text. Defaults existing rows to
+    'staff' (the only source that existed before the Patient Portal wrote
+    to this table), and new rows explicitly set it (see
+    core/scheduling_calendar_adapter.py and web/calendar_routes.py).
+    """
+    version = 2
+    description = "Add source column to appointment_requests"
+
+    def verify(self, conn: sqlite3.Connection) -> Tuple[bool, str]:
+        cursor = conn.execute("PRAGMA table_info(appointment_requests)")
+        columns = [row['name'] for row in cursor.fetchall()]
+
+        if 'source' in columns:
+            return False, "Column source already exists"
+
+        return True, ""
+
+    def up(self, conn: sqlite3.Connection):
+        conn.execute('''
+            ALTER TABLE appointment_requests
+            ADD COLUMN source TEXT NOT NULL DEFAULT 'staff'
+        ''')
+        conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_appointments_source
+            ON appointment_requests(source)
+        ''')
+
+    def down(self, conn: sqlite3.Connection):
+        conn.execute('''
+            CREATE TABLE appointment_requests_backup AS
+            SELECT id, patient_id, patient_name, follow_up_case_id, slot_date,
+                   slot_session, slot_time, slot_datetime_utc, status, follow_up_reason,
+                   requested_by, approved_by, approved_at, declined_reason, expires_at,
+                   expired_at, created_at, updated_at
+            FROM appointment_requests
+        ''')
+
+        conn.execute('DROP INDEX IF EXISTS idx_appointments_source')
+        conn.execute('DROP TABLE appointment_requests')
+        conn.execute('''
+            CREATE TABLE appointment_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id TEXT NOT NULL,
+                patient_name TEXT NOT NULL,
+                follow_up_case_id TEXT,
+                slot_date TEXT NOT NULL,
+                slot_session TEXT NOT NULL,
+                slot_time TEXT NOT NULL,
+                slot_datetime_utc TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                follow_up_reason TEXT,
+                requested_by TEXT NOT NULL,
+                approved_by TEXT,
+                approved_at TEXT,
+                declined_reason TEXT,
+                expires_at TEXT,
+                expired_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        ''')
+
+        conn.execute('''
+            INSERT INTO appointment_requests
+            SELECT * FROM appointment_requests_backup
+        ''')
+
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointment_requests(status)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_appointments_patient ON appointment_requests(patient_id)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_appointments_slot ON appointment_requests(slot_datetime_utc)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_appointments_expires ON appointment_requests(expires_at)')
+
+        conn.execute('DROP TABLE appointment_requests_backup')
+
+
 # Registry of all migrations
 MIGRATIONS: List[Migration] = [
     # Migration001AddStaffColumn(),  # Example - not currently needed
+    Migration002AddSourceColumn(),
 ]
 
 

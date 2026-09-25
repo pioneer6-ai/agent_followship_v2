@@ -1105,6 +1105,13 @@ endpoints below are relative to that. `GET /` serves the dashboard page itself.
 | POST | `/api/import-patients` | Store the rows and run a cycle |
 | POST | `/api/book-appointment` | Book an appointment manually |
 | POST | `/api/import-escalated-cases` | Import escalated cases as JSON |
+| POST | `/api/patients/{patient_id}/portal-link` | Issue a demo patient portal access token |
+| GET | `/patient/{access_token}` | Patient self-service portal page |
+| GET | `/api/patient-portal/{access_token}/status` | Non-sensitive case summary for the portal |
+| GET | `/api/patient-portal/{access_token}/available-slots` | Bookable dates for the portal's slot picker |
+| POST | `/api/patient-portal/{access_token}/select-slot` | Book the patient's explicitly selected slot |
+| POST | `/api/patient-portal/{access_token}/no-suitable-slot` | "None of these times work" -> park for next-week retry |
+| POST | `/api/patient-portal/{access_token}/chat` | Secondary chat assistant for simple questions |
 | GET | `/api/urgency-config` | Get current urgency configuration |
 | POST | `/api/urgency-config` | Save new urgency configuration |
 | POST | `/api/urgency-config/preview` | Preview urgency configuration changes |
@@ -1271,6 +1278,64 @@ through.
 ```json
 {"escalated_cases": [{"patient_id": "P003", "reason": "no_response"}]}
 ```
+
+## 🧑‍⚕️ Patient Self-Service Portal
+
+A patient-facing portal at `/patient/{access_token}` lets a patient view
+available slots, book one directly, ask a small secondary chat assistant a
+question, or say "none of these times work" to be checked on again later.
+It reuses the existing agent/orchestrator, `PolicyGuard`, and `TriggerService`.
+
+- **Access tokens are demo-only.** `web/patient_portal_auth.py`'s token
+  store is in-memory, never expires, and is not signed - a production
+  deployment needs short-lived, signed/expiring tokens instead.
+- **Booking** goes through `FollowUpAgentOrchestrator.handle_portal_slot_selection`,
+  which re-validates the selected date server-side (exists, available, not
+  in the past, within `booking_window_days`) before authorizing through
+  `PolicyGuard` and only then calling the scheduling subsystem (see
+  below) to atomically check capacity and create a CONFIRMED appointment.
+  `case.status` becomes `BOOKED` only after that database call reports
+  success - the case status is never itself the source of truth for
+  whether an appointment exists.
+- **"None of these times work"** sets `CaseStatus.PENDING_FUTURE_AVAILABILITY`
+  and `next_followup_at` (via `handle_no_suitable_slot`), so `TriggerService`
+  picks the case back up automatically once that date arrives. It never
+  sends a message and never touches the email/SMS provider layer.
+- **The chat assistant** (`agent/patient_chat.py`) classifies messages into
+  `clinic_admin` / `general_dental_education` / `personal_clinical_question`
+  / `out_of_scope`, and routes emergency/opt-out signals through the same
+  `PolicyGuard` authorization path as an inbound SMS reply - it cannot
+  book, decline, or escalate on its own authority.
+
+### Calendar: one production source of truth
+
+`SchedulingDatabase`/`CalendarService` (`scheduling/`, backed by
+`scheduling.db`) is the single production appointment store, used by
+**both** the Patient Portal and the Staff Calendar - there is no
+synchronization step, because there is nothing to synchronize.
+
+- **Staff Calendar** (`/staff/calendar`, `/api/calendar/*` in
+  `web/calendar_routes.py`) calls `CalendarService` directly. A
+  staff-created appointment lands as `pending` and requires approval
+  (`POST /api/calendar/appointments/{id}/approve`) before it is confirmed.
+- **Patient Portal** calls the agent's `AppointmentScheduler`, whose
+  `CalendarIntegration` is `core.scheduling_calendar_adapter.SchedulingDatabaseCalendarAdapter`
+  - an adapter that implements the same `CalendarIntegration` interface the
+  agent has always used, but delegates to `CalendarService`/`SchedulingDatabase`
+  instead of an in-memory dict. A valid Patient Portal booking is
+  auto-confirmed immediately (no staff approval needed) once the atomic
+  capacity/availability check succeeds; it is written with
+  `source='patient_portal'` on the appointment row so it can be
+  distinguished from staff-created bookings (`source='staff'`) in reports,
+  without needing a separate table or a sync job.
+- Both surfaces reading/writing the same `scheduling_db` instance (created
+  once in `web/app.py`) is what makes a Patient Portal booking immediately
+  visible in the Staff Calendar UI/API, and vice versa.
+- `MockCalendarIntegration` (`core/data_access.py`) still exists and is
+  used by tests that want an isolated in-memory fake (and by
+  `FollowUpAgentOrchestrator`'s default constructor when no calendar is
+  given), but it is **not** what the running application wires up -
+  `web/app.py` uses the adapter above.
 
 ## 🎓 Design Principles
 

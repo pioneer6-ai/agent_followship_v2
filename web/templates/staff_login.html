@@ -202,9 +202,15 @@
         const usernameInput = document.getElementById('username');
         const passwordInput = document.getElementById('password');
         
-        // Get return URL from query parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const returnUrl = urlParams.get('next') || '/staff/calendar';
+        const requestedReturnUrl = urlParams.get('next');
+        let returnUrl = '/staff/calendar';
+        if (requestedReturnUrl) {
+            const parsed = new URL(requestedReturnUrl, window.location.origin);
+            if (parsed.origin === window.location.origin && requestedReturnUrl.startsWith('/') && !requestedReturnUrl.startsWith('//')) {
+                returnUrl = parsed.pathname + parsed.search + parsed.hash;
+            }
+        }
         
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
