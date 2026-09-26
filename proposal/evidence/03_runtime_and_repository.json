@@ -3,7 +3,7 @@
   "interpreter": {
     "version": "3.14.5",
     "implementation": "CPython",
-    "executable": "/Users/martinchen/agent_followship_v2/.venv/bin/python",
+    "executable": "/Users/martinchen/agent_followship_v3/.venv/bin/python",
     "platform": "macOS-27.0-arm64-arm-64bit-Mach-O"
   },
   "packages": {

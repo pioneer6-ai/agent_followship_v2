@@ -6,7 +6,7 @@ Get up and running with the Patient Follow-up Agent in 5 minutes.
 
 ```bash
 # Navigate to project directory
-cd agent_followship
+cd agent_followship_v2
 
 # Install dependencies
 pip install -r requirements.txt
@@ -375,7 +375,7 @@ app.run(debug=True, host='0.0.0.0', port=8080)
 
 ```bash
 # Make sure you're in the project directory
-cd agent_followship
+cd agent_followship_v2
 
 # Reinstall dependencies
 pip install -r requirements.txt

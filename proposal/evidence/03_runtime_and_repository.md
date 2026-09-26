@@ -2,6 +2,11 @@
 
 Captured: 2026-09-25T09:47:34+00:00
 
+> **Snapshot scope.** This capture describes commit `fbcc6c1` only. It is **not**
+> a description of the current `master` (`f35639a`), which is a later revision.
+> Re-run `proposal/scripts/capture_runtime_evidence.py` to re-capture against a
+> later revision.
+
 ## What this proves
 
 The deployment was validated against a specific, identifiable revision of the code on a specific interpreter with specific library versions. Anyone re-running the project can confirm they are comparing like with like before judging any other evidence in this pack.
@@ -9,7 +14,7 @@ The deployment was validated against a specific, identifiable revision of the co
 ## Interpreter
 
 - Python: 3.14.5 (CPython)
-- Executable: `/Users/martinchen/agent_followship_v2/.venv/bin/python`
+- Executable: `/Users/martinchen/agent_followship_v3/.venv/bin/python` (local virtualenv that ran the capture; CPython 3.14.5)
 - Platform: macOS-27.0-arm64-arm-64bit-Mach-O
 
 ## Repository

@@ -3,7 +3,7 @@
 ## Project Structure
 
 ```
-agent_followship/
+agent_followship_v2/
 ├── README.md                    # Main documentation
 ├── QUICKSTART.md               # 5-minute setup guide
 ├── ARCHITECTURE.md             # This file - system architecture

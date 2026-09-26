@@ -2,6 +2,11 @@
 
 Captured: 2026-09-25T09:47:34+00:00
 
+> **Snapshot scope.** The result below (`811 passed`) is the suite as it stood at
+> commit `fbcc6c1` only. It is **not** the current count on `master` (`f35639a`).
+> Re-run `proposal/scripts/capture_tests_evidence.py` to re-capture against a
+> later revision.
+
 ## What this proves
 
 The revision identified in evidence 3 passes its full automated test
@@ -13,7 +18,7 @@ The verbatim pytest output is stored alongside this file.
 ## Result
 
 - Status: **PASS** (exit code 0)
-- Command: `/Users/martinchen/agent_followship_v2/.venv/bin/python -m pytest tests -q`
+- Command: `/Users/martinchen/agent_followship_v3/.venv/bin/python -m pytest tests -q` (local virtualenv that ran the capture; CPython 3.14.5)
 - Passed: 811
 - Failed: 0
 - Errors: 0

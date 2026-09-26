@@ -107,7 +107,7 @@ function calling**. See [LLM Tool Layer](#-llm-tool-layer-function-calling).
 1. **Clone or navigate to the project directory**
 
 ```bash
-cd agent_followship
+cd agent_followship_v2
 ```
 
 2. **Install dependencies**
@@ -172,7 +172,7 @@ Bring your own LLM and bring your own mailbox.
 Everything a clinic configures lives in **one file**:
 
 ```
-agent_followship/hospital_setup.py        <-- the interface file (repository root)
+agent_followship_v2/hospital_setup.py        <-- the interface file (repository root)
 ```
 
 No other file needs editing to point the agent at a different LLM or a different
