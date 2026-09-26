@@ -99,8 +99,12 @@ function calling**. See [LLM Tool Layer](#-llm-tool-layer-function-calling).
 
 ### Prerequisites
 
-- Python 3.9 or higher
-- pip package manager
+- **Python 3.10 or higher** — the floor is set by `anthropic==1.8.0`, which
+  declares `Requires-Python >=3.10`. The project is developed and tested on
+  Python 3.13. Nothing else is required: no database, no Docker, no cloud SDK
+  installed by hand, and no credentials to run the demo, the tests or the
+  dashboard.
+- `pip` package manager
 
 ### Installation
 
@@ -110,15 +114,24 @@ function calling**. See [LLM Tool Layer](#-llm-tool-layer-function-calling).
 cd agent_followship_v2
 ```
 
-2. **Install dependencies**
+2. **Install dependencies — this is the only install step**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-That one command is enough for the dashboard, the demo and the whole test
-suite. See [Dependencies](#dependencies) for what each package is for and which
-ones are optional.
+That one command installs **everything**: the dashboard, the demo, the whole
+test suite, the patient-list upload, the AWS messaging tools and the live-Claude
+tool-use loop. The packages that are *optional at runtime* — `anthropic`,
+`boto3`/`botocore`, `openpyxl`, `certifi` — are included by default, because
+"optional" means the agent degrades gracefully without them, not that you may
+have to add them later. There is no second install step and no
+`pip install <something>` further down this document. See
+[Dependencies](#dependencies) for what each package is for.
+
+The only things that are **not** pip-installable are `pandoc` and Google Chrome,
+and they are needed only to rebuild the proposal/evidence PDFs — never to run
+the agent.
 
 3. **Run the interactive demo**
 
@@ -142,28 +155,40 @@ Then open your browser to: `http://localhost:8080`
 
 ### Dependencies
 
-`requirements.txt` is the single source of truth. What each package is for:
+`pip install -r requirements.txt` is the single, complete install step.
+`requirements.txt` is the source of truth. What each pin is for:
 
 | Package | Needed for | If it is missing |
 |---|---|---|
 | `flask`, `werkzeug` | the web dashboard (`web/app.py`) | the dashboard cannot start; the demo and tests still run |
+| `anthropic` | live Claude (or any Anthropic-compatible endpoint): the `tools/` tool-use loop and the agent's DECIDE step | the agent falls back to its rule engine |
+| `openai`, `httpx` | any `/chat/completions` endpoint (OpenAI, Gemini, Ollama, vLLM, LiteLLM) and the upload parser's one model call per file | LLM parsing falls back to the rules |
 | `boto3`, `botocore` | the `send_sms` / `send_email` AWS tools | those two tools return `error_code: "config_missing"`; everything else works |
 | `openpyxl` | reading `.xlsx` patient lists on upload | an `.xlsx` upload returns "pip install openpyxl"; CSV/TSV/JSON/TXT keep working |
 | `certifi` | the CA trust store for outbound HTTPS and SMTP | live sends fail with `CERTIFICATE_VERIFY_FAILED` on a macOS python.org install, which ships no CAs until "Install Certificates" is run |
 | `python-dateutil` | pinned because `botocore` requires it | — (nothing in this project imports it directly) |
+| `tzdata` | `ZoneInfo` on Windows | fine on macOS/Linux, which ship the database |
 | `pytest`, `pytest-cov` | the test suite | — |
 | `flake8`, `black`, `mypy`, `sphinx` | linting, formatting, type checks, docs | — |
 
-Only `flask` is imported at module scope. `boto3`, `botocore`, `openpyxl`, `certifi`
-and `anthropic` are all imported lazily *inside* the function that needs them, which
-is why the offline demo and the entire test suite run with no cloud SDKs, no
-credentials and no network.
+Only `flask` is imported at module scope. `anthropic`, `openai`, `boto3`,
+`botocore`, `openpyxl` and `certifi` are all imported lazily *inside* the
+function that needs them. That is a robustness property, not an installation
+step: they are installed by default, and the offline demo and the whole test
+suite run even without them, with no credentials and no network.
 
-**Deliberately not installed by default:** `anthropic` (the CLI/`tools/` LLM
-tool-use loop and the agent's LLM DECIDE step) and `twilio` are commented out in
-`requirements.txt` because they are optional — see *Enabling Claude for DECIDE*
-below. Without `anthropic` the agent falls back to its rule engine rather than
-failing.
+`httpx` is pinned to `0.27.2` next to `openai==1.51.0` deliberately — `openai`
+1.51.0 passes an argument that `httpx` 0.28 removed, which makes every request
+fail with a message the callers only log (see QUICKSTART → Troubleshooting).
+
+**Never needed at all:** `twilio` and `python-whatsapp`. The Twilio and Meta
+WhatsApp APIs are called over plain HTTP by `tools/providers.py`
+(`tools/transport.py` uses stdlib `urllib`), so no SDK is imported. Their
+commented lines in `requirements.txt` record that this was a choice.
+
+**Not pip-installable, and not needed to run anything:** `pandoc` and Google
+Chrome, used only by `proposal/scripts/build_pdf.py` and
+`capture_dashboard_screenshot.py` to rebuild the evidence PDFs and screenshots.
 
 ## 🏥 Hospital Setup
 
@@ -791,8 +816,11 @@ would have sent. See `is_configured_for_live_sends()` in `agent/delivery.py`.
 
 ### Enabling Claude for DECIDE
 
+`anthropic` is already installed by `requirements.txt` — there is nothing to add.
+Configure it in `.env` (`.env` is the LLM's only home; `export` is shown below
+only for a throwaway shell):
+
 ```bash
-pip install anthropic
 # prefer .env over export -- it is the LLM's only home:
 #   ANTHROPIC_API_KEY=sk-ant-...
 #   AGENT_LLM_PROVIDER=anthropic
@@ -873,7 +901,7 @@ Delivery notes:
   Messaging SMS first, otherwise it returns `not_subscribed`.
 - `send_email` calls `ses.send_email` from `AWS_SES_SOURCE`, which must be an
   SES-verified identity.
-- Both require `boto3` (`pip install boto3`). Without it they report
+- Both require `boto3`, which `requirements.txt` installs. Without it they report
   `config_missing` -- they never raise `ImportError`.
 - Live sending stays opt-in: `MESSAGING_DRY_RUN=0`.
 
@@ -1085,7 +1113,8 @@ print(result.suggested_fallback_channels) # e.g. ['sms', 'email']
 tools = get_tool_schemas()
 ```
 
-Real Claude tool use (requires `pip install anthropic` and `ANTHROPIC_API_KEY`):
+Real Claude tool use (`anthropic` is already installed; set `ANTHROPIC_API_KEY`
+in `.env`):
 
 ```python
 from tools.llm_agent import ToolUseAgent, create_anthropic_client

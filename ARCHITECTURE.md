@@ -718,16 +718,23 @@ python demo.py             # offline interactive demo
 ```bash
 gunicorn -w 4 -b 0.0.0.0:8000 web.app:app
 ```
+`gunicorn` is deliberately **not** in `requirements.txt` — `pip install -r
+requirements.txt` is the complete development/demo install, and the Flask
+development server (`python -m web.app`) is what every command in this document
+uses. Install `gunicorn` separately only if you are deploying behind a WSGI
+server.
 
 ### Docker (Future)
 ```dockerfile
-FROM python:3.9-slim
+FROM python:3.10-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY . .
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "app:app"]
 ```
+The base image must be 3.10 or newer: `anthropic==1.8.0` declares
+`Requires-Python >=3.10`, so the `pip install` line above cannot resolve on 3.9.
 
 ### Kubernetes (Future)
 - Deployment with replicas

@@ -8,9 +8,18 @@ Get up and running with the Patient Follow-up Agent in 5 minutes.
 # Navigate to project directory
 cd agent_followship_v2
 
-# Install dependencies
+# Install dependencies -- this is the ONLY install step
 pip install -r requirements.txt
 ```
+
+**Requires Python 3.10 or higher** (set by `anthropic==1.8.0`; developed on
+3.13). That one command is the complete install: it covers the dashboard, the
+offline demo, the whole test suite, the patient-list upload (`openpyxl`), the AWS
+messaging tools (`boto3`) and live Claude (`anthropic`). **Nothing has to be
+installed afterwards** — there is no extra `pip install <package>` anywhere in
+this guide, and no "optional extra" you must add by hand. The only non-pip
+prerequisites are `pandoc` and Google Chrome, needed solely to rebuild the
+proposal/evidence PDFs in `proposal/scripts/`, never to run the agent.
 
 **Setting this up for a real clinic?** Two files, two jobs. `hospital_setup.py`
 (repository root) is the interface a hospital edits to point the agent at its own
@@ -26,7 +35,11 @@ below runs offline with sample data and needs no credentials.
 - **LLM** → edit `.env` (`AGENT_LLM_PROVIDER`, `AGENT_LLM_MODEL`,
   `AGENT_LLM_API_KEY`, `AGENT_LLM_BASE_URL`; see `.env.example`). This is the only
   place any LLM setting is written — `hospital_setup.py` emits no `AGENT_LLM_*`
-  variable and cannot override it.
+  variable and cannot override it. Every real LLM interface in the project reads
+  from these four variables: the DECIDE step, the `tools/` tool-use loop, the
+  dashboard's `/api/llm-status` and `/api/llm-check` endpoints, and the upload
+  parser in `web/app.py` (`LLMPatientParser.from_environment()`), whose code path
+  contains no endpoint, key or model literal at all.
 - **Mailbox** → edit the `EMAIL` / `AGENT` blocks in `hospital_setup.py`, or set
   the corresponding environment variables.
 
@@ -34,8 +47,9 @@ The settings most clinics change are `AGENT_LLM_PROVIDER` in `.env` (one of
 `anthropic` / `openai` / `azure` / `disabled` — self-hosted models such as Ollama
 use `openai` plus a base URL), `EMAIL.address` (their own mailbox) and
 `EMAIL.display_name`. The setup file is also importable, so a hospital's own
-portal can drive it. Full details, including the function reference: README →
-**Hospital Setup**.
+portal can drive it. `disabled` (or `none` / `off` / `rules`) turns every model
+call off and leaves the agent on its rule engine. Full details, including the
+function reference: README → **Hospital Setup**.
 
 ## Option 1: Interactive Demo (Recommended for First Time)
 
@@ -207,11 +221,11 @@ registry.call("send_email", {
 })
 ```
 
-Setup:
+Setup — the two SDKs these tools need (`boto3` for AWS, `openpyxl` for `.xlsx`
+uploads) are already installed by `pip install -r requirements.txt`, so only the
+credentials and the allowlists are left to set:
 
 ```bash
-.venv/bin/pip install boto3            # required by the two AWS tools only
-.venv/bin/pip install openpyxl         # required for .xlsx patient-list uploads
 export AWS_REGION=ap-southeast-1
 export AWS_SES_SOURCE=martinchenonly1@gmail.com
 export AWS_SES_CONFIGURATION_SET=patient-followup   # makes delivery verifiable
@@ -268,8 +282,9 @@ set -a; . ./.env; set +a
 Nothing is transmitted while `MESSAGING_DRY_RUN` is unset, even with
 credentials present.
 
-For live Claude tool use: `pip install anthropic`, set `ANTHROPIC_API_KEY`, and
-use `tools.llm_agent.ToolUseAgent` with `create_anthropic_client()`.
+For live Claude tool use: set `ANTHROPIC_API_KEY` in `.env` (the `anthropic` SDK
+is already installed) and use `tools.llm_agent.ToolUseAgent` with
+`create_anthropic_client()`.
 
 ## Key Concepts
 
