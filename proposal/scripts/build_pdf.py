@@ -37,13 +37,18 @@ CSS = PROJECT_ROOT / "proposal" / "assets" / "proposal.css"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
-def to_html(source: Path, destination: Path) -> None:
+def to_html(
+    source: Path,
+    destination: Path,
+    title: str = "Patient Follow-up Agent - Proposal",
+) -> None:
     """
-    Convert the proposal markdown to a standalone HTML document.
+    Convert a markdown document to a standalone HTML file.
 
     Args:
         source: Markdown file.
         destination: HTML file to write.
+        title: Document title for pandoc's metadata block.
 
     Raises:
         RuntimeError: If pandoc fails.
@@ -63,7 +68,7 @@ def to_html(source: Path, destination: Path) -> None:
             "--resource-path",
             f"{source.parent}:{PROJECT_ROOT}",
             "--metadata",
-            "title=Patient Follow-up Agent - Proposal",
+            f"title={title}",
             "--output",
             str(destination),
         ],
@@ -144,12 +149,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE, help="Markdown source.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="PDF destination.")
+    parser.add_argument(
+        "--html-output",
+        type=Path,
+        default=BUILD_DIR / "proposal.html",
+        help="Intermediate HTML destination.",
+    )
+    parser.add_argument(
+        "--title",
+        default="Patient Follow-up Agent - Proposal",
+        help="Document title passed to pandoc's metadata block.",
+    )
     args = parser.parse_args(argv)
 
-    BUILD_DIR.mkdir(parents=True, exist_ok=True)
-    html_path = BUILD_DIR / "proposal.html"
+    # Resolve all paths: pandoc and Chrome both need absolute paths (``as_uri``
+    # rejects relative ones), and the progress messages report them relative to
+    # the project root.
+    args.source = args.source.resolve()
+    args.output = args.output.resolve()
+    args.html_output = args.html_output.resolve()
 
-    to_html(args.source, html_path)
+    html_path = args.html_output
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    to_html(args.source, html_path, title=args.title)
     if not html_path.exists() or html_path.stat().st_size < 1000:
         print("pandoc produced no usable HTML", file=sys.stderr)
         return 1

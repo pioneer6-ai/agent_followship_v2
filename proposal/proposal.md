@@ -410,6 +410,14 @@ in `proposal/scripts/` against the revision named on the first page.
 
 Reproduction is a single command per artifact; the appendix lists them.
 
+The same seven reports are also consolidated into a single printable document,
+`proposal/Patient_Followup_Agent_Deployment_Evidence.pdf`, which restates every
+figure, re-checks each artifact hash and states plainly what the pack does and
+does not prove. It is generated from `proposal/deployment_evidence.md` by
+`proposal/scripts/build_deployment_evidence_pdf.py`, so it cannot drift from the
+pack without the build being re-run. Read it when the reports need to be read
+together; read the reports themselves when a single claim is in question.
+
 ---
 
 ## 9. Measured behaviour
@@ -650,6 +658,7 @@ Run from the project root, after activating the virtual environment:
 .venv/bin/python proposal/scripts/capture_delivery_confirmation.py  # evidence 7
 .venv/bin/python proposal/scripts/capture_evidence_index.py         # index
 .venv/bin/python proposal/scripts/build_pdf.py                      # this document
+.venv/bin/python proposal/scripts/build_deployment_evidence_pdf.py  # consolidated evidence pack
 ```
 
 Evidence 6 transmits to a real mailbox and therefore refuses to run without
