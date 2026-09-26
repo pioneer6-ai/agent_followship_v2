@@ -212,8 +212,8 @@ Delivery code paths in the captured revision, cited by file and line:
 | --- | --- | ---: |
 | `tools/aws_providers.py` | `client.send_text_message` | 307 |
 | `tools/aws_providers.py` | `client.send_email` | 348 |
-| `tools/messaging.py` | `def send_sms` | 383 |
-| `tools/messaging.py` | `def send_email` | 413 |
+| `tools/messaging.py` | `def send_sms` | 449 |
+| `tools/messaging.py` | `def send_email` | 482 |
 | `agent/delivery.py` | `def is_configured_for_live_sends` | 334 |
 
 ---
@@ -619,19 +619,29 @@ The pack's value rests on artifacts being the same bytes the reports were writte
 from. Every artifact was re-hashed for this document. Full SHA-256, with the size
 recorded in `00_index.md` beside the size on disk. One row is marked
 hand-contributed: its hash pins the bytes this pack ships, but no capture script
-produced it, so there is nothing for a reviewer to re-run.
+produced it, so there is nothing for a reviewer to re-run. Rows carrying a
+parenthetical are annotated, and the annotations are explained in the two
+subsections below.
 
 | Artifact | Size on disk | SHA-256 | Matches index |
 | --- | ---: | --- | --- |
-| `00_index.md` | 5,728 | `d48bdd21b125ba4cdd61a44fdcb46a2a73cb621851b01f670d60bbded6dd2c8d` | n/a (is the index) |
+| `00_index.md` | 6,336 | `f379280504ec6be465faddc50bacc022a680e24dfb9c0923945f52f0755de685` | n/a (is the index) |
 | `01_agent_decision_audit.md` | 5,155 | `1b9c73463a6718c18e0373640ef64cc77a918d383295a1c5b460fbca3f573f41` | yes |
-| `02_aws_messaging_config.md` | 2,302 | `2dab4ce38689760c3ef5184f86c2b5666abf9173876491f6228c863d7ee43f01` | yes |
+| `01_agent_decision_audit.json` | 7,494 | `0b8a5e4f937ea33bde3de754cbc7c00eb878e65bc4d4e79dc790b5f16829df26` | yes |
+| `02_aws_messaging_config.md` | 2,302 | `9ac617c9c42042064923702cc6dad2c7887f46e81431d4f38505dbc918b5db7d` | yes (corrected — see below) |
+| `02_aws_messaging_config.json` | 2,578 | `2a803512f062039d2ca2a7d23e466ec20006c78db642ace8dc827fb83652d438` | yes (corrected — see below) |
 | `03_runtime_and_repository.md` | 1,788 | `f7de4397ab358fde7f00f17e735a9540e258a05751843b4f1335b405e23de4f5` | yes (was stale — see below) |
+| `03_runtime_and_repository.json` | 1,504 | `ca48f2eabe4e1e1ea7c2d986d7f309f62ec60f8374992863ce29803c1d952f7c` | yes |
 | `04_test_suite.md` | 3,228 | `a53602b82f2e15354317ec7298f7427947a6d3fcc5dd5911342f46e713308af6` | yes (was stale — see below) |
+| `04_test_suite.json` | 5,735 | `ebd31f7de4488db0bc90ce71cbb235c60347dc93cd6ff48a3bbc89c689fd60f0` | yes |
 | `05_dashboard_runtime.md` | 3,368 | `9a800d1e377ede06f2f538091a763c46822b3e98a4f1b37b3b8daadfbe3d9a52` | yes |
+| `05_dashboard_runtime.json` | 3,500 | `514cd666c7756048e66f47be9bcad618a6c93f7f2bcec882ab717031d5024a9f` | yes |
 | `06_live_delivery.md` | 2,092 | `ba29e0695c1cc155a25e605f7cd89d0d6dc77191d4c38604e9d5f108e24e4553` | yes |
+| `06_live_delivery.json` | 1,558 | `3594bd2a00f08b3de827dbe5155ae91b1ada47876ff982c04fa2d54c2a1e177e` | yes |
 | `07_delivery_confirmation.md` | 2,589 | `5f9b34db0ca43398bee5596d990de0985a0c86153783a74421c6f6e8b277d629` | yes |
+| `07_delivery_confirmation.json` | 2,425 | `46f441dee5b38dde1c6179df54f1dfb97eaa2adaef4564a83da3d3b652287fe4` | yes |
 | `08_patient_inbox_receipt.md` | 8,863 | `6ff287cbeead04c5491f5004822d24409f8080bfc14b145fdd0e046d3e47d0a5` | yes |
+| `08_patient_inbox_receipt.json` | 6,417 | `533ee2685524faa161371bfc7f80c322df91a0ef9d2f4bb48ecb087af5a75c24` | yes |
 | `artifacts/audit_log_snapshot.json` | 261,297 | `76551f7389296eda3ff1d905ec5ed8c486f98fccd12cff0db80e9cd9bff06644` | yes |
 | `artifacts/audit_log.generation.json` | 4,782 | `42da6d67abc3fdad5415daab3e377b2b44c9c3531acad79079b20df89eb59243` | yes |
 | `artifacts/pytest_output.txt` | 2,216 | `1da74e80729d72a81aeb2561d0504b1ee665df426d930122ac12dfb41feeeff6` | yes |
@@ -671,6 +681,24 @@ than of the index. Its hash is verifiable; its provenance is not — nothing in 
 pack can show that the image is a screen of the mailbox it says it is. And the
 index's attestation for it is only as good as the file the operator supplied.
 
+### One locator in report 2 pointed at the wrong line
+
+Report 2's "Delivery code paths" table cites `tools/messaging.py` twice. Those two
+rows originally read 383 and 413, which are the lines of `send_sms_message` and
+`send_email_message` — the transport helpers — rather than the `send_sms` and
+`send_email` entry points the rows name. `capture_aws_config_evidence.py` resolved
+each locator with a bare substring search, and `def send_sms` occurs inside
+`def send_sms_message`, so the first hit won. The locators were right; only the
+line numbers were wrong.
+
+The resolver now matches on word boundaries, and re-running it over this revision
+yields 307, 348, 449, 482 and 334 — the values report 2 now shows. Those two
+numbers were corrected in `02_aws_messaging_config.md` and in its JSON sidecar
+directly, rather than by re-running the capture: the remainder of that report is
+live account state, and re-capturing it would have substituted whatever the
+account returns today for the observations the report makes. The index was
+regenerated afterwards, so the hashes pinned above attest to the corrected files.
+
 ### Reviewing this pack, in order
 
 1. Confirm the revision on the first page matches the build under review.
@@ -687,35 +715,37 @@ index's attestation for it is only as good as the file the operator supplied.
 
 ## 12. Independent re-run on the current revision
 
-The reports above are pinned to `fbcc6c1`. The working tree that first shipped this
-PDF is at `0735515` (`master`, 2026-09-26), one commit later, and the pack's own
-snapshot-scope notes ask a reader to re-capture rather than extrapolate. The
-revision that ships this document adds report 8 and the index regeneration —
-documentation and one image, no application code — so the re-run below still
-describes the current revision. The
+The reports above are pinned to `fbcc6c1`. The revision that ships this document is
+`c39c91f` (`master`, 2026-09-26), 21 commits later, and the pack's own
+snapshot-scope notes ask a reader to re-capture rather than extrapolate. Those
+commits are not documentation only: they include the move of all LLM configuration
+into `.env` and an `httpx` pin that repairs the OpenAI client, so **the line
+citations elsewhere in this pack describe `fbcc6c1`, and some of them address code
+that has since moved.** The
 suite was re-run here, on this clone, to see whether the pass result survives the
 later revision and a different interpreter. It does:
 
-| Fact | Evidence 4 (`fbcc6c1`) | This re-run (`0735515`) |
+| Fact | Evidence 4 (`fbcc6c1`) | This re-run (`c39c91f`) |
 | --- | --- | --- |
-| Passed | 811 | **934** |
+| Passed | 811 | **952** |
 | Skipped | 0 | 1 |
 | Failed / Errors | 0 / 0 | 0 / 0 |
 | Interpreter | CPython 3.14.5 (sibling clone `.venv`) | CPython 3.13.15 (conda env `agent_hackathon`) |
-| Duration | 14.43 s | 10.74 s |
+| Duration | 14.43 s | 12.26 s |
 
-The suite grew by 123 cases between the two revisions, which follows from the
-commits in between (the LLM message-authoring port and the docs work). The one
+The suite grew by 141 cases between the two revisions, which follows from the
+commits in between (the LLM message-authoring port, the `.env` configuration
+refactor and the docs work). The one
 skip is deliberate and reported by pytest as a skip, not a failure.
 
 Two honest qualifications. First, this re-run used the conda environment
 `agent_hackathon`, whose dependency set is the `requirements.txt` pin list —
-flask 3.0.0, werkzeug 3.0.1, openai 1.51.0, anthropic 1.8.0, boto3 1.35.36,
-botocore 1.35.99, openpyxl 3.1.2, pytest 7.4.3. It is *not* the interpreter that
-produced evidence 4. Second, running the suite exercises the real audit logger, so
-this run appended to the working tree's `audit_log.json` — the same limitation
-evidence 4 records. It cannot affect evidence 1, which is computed from the frozen
-snapshot.
+flask 3.0.0, werkzeug 3.0.1, openai 1.51.0, httpx 0.27.2, anthropic 1.8.0,
+boto3 1.35.36, botocore 1.35.99, openpyxl 3.1.2, pytest 7.4.3. It is *not* the
+interpreter that produced evidence 4. Second, running the suite exercises the real
+audit logger, so this run appended to the working tree's `audit_log.json` — the
+same limitation evidence 4 records. It cannot affect evidence 1, which is computed
+from the frozen snapshot.
 
 Nothing here is a substitute for evidence 4: it is a corroboration at a later
 revision, on a different interpreter, and it should be read that way.

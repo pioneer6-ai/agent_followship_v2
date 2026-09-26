@@ -120,6 +120,26 @@ def collect(out_dir: Path) -> List[Dict[str, Any]]:
             }
         )
 
+    # Report sidecars. Each capture script writes a machine-readable companion
+    # beside its report prose (``NN_*.json``). They are inputs to the reports, not
+    # reports, so they are indexed with the supporting artifacts -- otherwise the
+    # directory holds files this index never mentions.
+    for path in sorted(out_dir.glob("*.json")):
+        if path.is_file():
+            entries.append(
+                {
+                    "kind": "report data",
+                    "name": path.name,
+                    "title": path.name,
+                    "purpose": (
+                        "Machine-readable companion of the report sharing its "
+                        "number: the parsed values that report's prose was written from."
+                    ),
+                    "size_bytes": path.stat().st_size,
+                    "sha256": sha256_of(path),
+                }
+            )
+
     artifacts_dir = out_dir / "artifacts"
     if artifacts_dir.is_dir():
         for path in sorted(artifacts_dir.rglob("*")):

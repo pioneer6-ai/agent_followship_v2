@@ -21,6 +21,12 @@ this guide, and no "optional extra" you must add by hand. The only non-pip
 prerequisites are `pandoc` and Google Chrome, needed solely to rebuild the
 proposal/evidence PDFs in `proposal/scripts/`, never to run the agent.
 
+**Which Python?** Whichever interpreter you installed into. Some commands below
+spell it out as `.venv/bin/python` — that is shorthand for "this project's own
+interpreter". From an activated environment (including a conda env such as
+`agent_hackathon`) plain `python` means the same thing. README → **Prerequisites**
+shows how to create one.
+
 **Setting this up for a real clinic?** Two files, two jobs. `hospital_setup.py`
 (repository root) is the interface a hospital edits to point the agent at its own
 already-maintained **domain mailbox**, and to verify the result. Its **LLM** half
@@ -67,7 +73,7 @@ This will:
 ## Option 2: Web Dashboard
 
 ```bash
-python web/app.py
+python -m web.app
 ```
 
 Then open your browser to: **http://localhost:8080**
@@ -424,7 +430,7 @@ pip install "httpx<0.28"
 
 The sample data is automatically initialized when running:
 - `python demo.py`
-- `python web/app.py`
+- `python -m web.app`
 
 For manual initialization:
 ```python

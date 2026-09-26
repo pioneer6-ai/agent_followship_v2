@@ -55,6 +55,6 @@ Verified SMS destination numbers:
 | --- | --- | ---: |
 | `tools/aws_providers.py` | `client.send_text_message` | 307 |
 | `tools/aws_providers.py` | `client.send_email` | 348 |
-| `tools/messaging.py` | `def send_sms` | 383 |
-| `tools/messaging.py` | `def send_email` | 413 |
+| `tools/messaging.py` | `def send_sms` | 449 |
+| `tools/messaging.py` | `def send_email` | 482 |
 | `agent/delivery.py` | `def is_configured_for_live_sends` | 334 |

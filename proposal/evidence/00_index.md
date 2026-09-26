@@ -1,6 +1,6 @@
 # Evidence pack index
 
-Generated: 2026-09-26T02:44:30+00:00
+Generated: 2026-09-26T03:55:54+00:00
 
 Every artifact listed here was either captured by a script in
 `proposal/scripts/` or contributed by hand; where an artifact was
@@ -27,7 +27,7 @@ The agent runs its full Perceive -> Decide -> Act -> Observe loop and records a 
 The messaging transport is wired to named AWS services in a named region, it sends from a verified identity, and it refuses recipients outside an explicit allow-list. The last section pins every claim to a file and line in the deployed revision.
 
 - Size: 2,302 bytes
-- SHA-256: `2dab4ce38689760c3ef5184f86c2b5666abf9173876491f6228c863d7ee43f01`
+- SHA-256: `9ac617c9c42042064923702cc6dad2c7887f46e81431d4f38505dbc918b5db7d`
 
 ### `03_runtime_and_repository.md`
 
@@ -87,6 +87,14 @@ Reminders written and sent by this agent through the configured SES identity rea
 
 | Artifact | Kind | Size | SHA-256 (first 16) |
 | --- | --- | ---: | --- |
+| `01_agent_decision_audit.json` | report data | 7,494 | `0b8a5e4f937ea33b` |
+| `02_aws_messaging_config.json` | report data | 2,578 | `2a803512f062039d` |
+| `03_runtime_and_repository.json` | report data | 1,504 | `ca48f2eabe4e1e1e` |
+| `04_test_suite.json` | report data | 5,735 | `ebd31f7de4488db0` |
+| `05_dashboard_runtime.json` | report data | 3,500 | `514cd666c7756048` |
+| `06_live_delivery.json` | report data | 1,558 | `3594bd2a00f08b3d` |
+| `07_delivery_confirmation.json` | report data | 2,425 | `46f441dee5b38dde` |
+| `08_patient_inbox_receipt.json` | report data | 6,417 | `533ee2685524faa1` |
 | `artifacts/audit_log.generation.json` | raw artifact | 4,782 | `42da6d67abc3fdad` |
 | `artifacts/audit_log_snapshot.json` | raw artifact | 261,297 | `76551f7389296eda` |
 | `artifacts/pytest_output.txt` | raw artifact | 2,216 | `1da74e80729d72a8` |

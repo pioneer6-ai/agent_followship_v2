@@ -10,18 +10,52 @@ Every test here pins a class of defect that was actually found by hand:
 * The README told users to run ``python app.py`` -- a file that does not exist --
   and to open port 5000 while the dashboard listens on 8080.
 * Six routes, including the booking flow, were missing from the API reference.
+* ``test_data/README.md`` made the same missing-``app.py`` mistake, and its file
+  inventory omitted three files that are actually in the directory. It was unseen
+  because only ``DOC_FILES`` were checked; the sweep below covers every markdown
+  file in the repository.
+* ``proposal/deployment_evidence.md`` paired the symbol ``def send_sms`` with the
+  line of ``send_sms_message``, and ``proposal/proposal.md`` cited
+  ``agent/orchestrator.py:383`` where the named method is at 153.
+* The line numbers in evidence report 2 were wrong for the same reason: the
+  capture script resolved locators with ``needle in line``, so ``def send_sms``
+  matched inside ``def send_sms_message``. Generated citations need a test on the
+  generator, not only on the generated file.
 
 These are cheap static checks over the real files, so they cannot silently rot.
 """
 
 import os
 import re
+import subprocess
 import sys
 from typing import Dict, List, Set, Tuple
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DOC_FILES = ["README.md", "QUICKSTART.md", "ARCHITECTURE.md"]
+
+
+def _all_markdown_files() -> List[str]:
+    """
+    Every markdown file tracked by git, relative to the project root.
+
+    Returns:
+        Sorted list of paths, or ``DOC_FILES`` if git is unavailable.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "*.md"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return list(DOC_FILES)
+    found = sorted(line for line in out.split() if line.endswith(".md"))
+    return found or list(DOC_FILES)
+
 
 # Variables a person may legitimately see in these docs that this project does
 # not read itself. ``SSL_CERT_FILE`` is read by ``tools.tls`` (so it is *not*
@@ -273,13 +307,13 @@ class TestMarkdownHygiene:
     """Cheap structural checks so the docs stay renderable."""
 
     def test_code_fences_are_balanced(self):
-        for name in DOC_FILES:
+        for name in _all_markdown_files():
             fences = _read(name).count("\n```")
             assert fences % 2 == 0, f"{name} has an odd number of code fences"
 
     def test_internal_anchors_resolve(self):
         """Every ``#section`` link must have a matching heading."""
-        for name in DOC_FILES:
+        for name in _all_markdown_files():
             text = _read(name)
             slugs = set()
             for line in text.splitlines():
@@ -293,6 +327,116 @@ class TestMarkdownHygiene:
                 if anchor not in slugs
             )
             assert broken == [], f"{name} has broken anchors: {broken}"
+
+
+class TestEveryMarkdownFile:
+    """
+    The checks above stop at ``DOC_FILES``; these sweep the whole repository.
+
+    A stale pointer in a secondary document is just as wrong as one in the
+    README, and the files that rot fastest are the ones no test reads. These are
+    deliberately weaker than the ``DOC_FILES`` checks -- they assert what can be
+    asserted about *any* document, whatever its audience.
+    """
+
+    def test_every_documented_python_command_names_a_real_file(self):
+        """``python path/to/thing.py`` must name a file that exists."""
+        for name in _all_markdown_files():
+            for arg in re.findall(r"python[\w.]*\s+(?!-m\b)([^\s`'\"]+\.py)", _read(name)):
+                path = os.path.join(PROJECT_ROOT, arg)
+                assert os.path.exists(path), (
+                    f"{name} tells users to run `python {arg}`, which does not exist"
+                )
+
+    def test_documented_file_line_citations_point_inside_the_file(self):
+        """A ``path.py:123`` citation must be a real file and a real line."""
+        for name in _all_markdown_files():
+            text = _read(name)
+            for target, line in re.findall(r"`([\w][\w/.\-]*\.py):(\d+)`", text):
+                path = os.path.join(PROJECT_ROOT, target)
+                assert os.path.exists(path), f"{name} cites a missing file: {target}"
+                with open(path, "r", encoding="utf-8") as fh:
+                    total = len(fh.read().splitlines())
+                assert int(line) <= total, (
+                    f"{name} cites {target}:{line}, but that file has only {total} lines"
+                )
+
+    def test_documented_symbol_and_line_agree(self):
+        """
+        A table row pairing ``def name`` with a line must land on that definition.
+
+        This is the check that would have caught ``def send_sms`` being cited at
+        the line of ``send_sms_message``: both are in the same file and both lines
+        exist, so only comparing the symbol to the line finds it.
+        """
+        row = re.compile(r"^\|\s*`([^`]+\.py)`\s*\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|", re.M)
+        for name in _all_markdown_files():
+            for target, symbol, line in row.findall(_read(name)):
+                definition = re.match(r"(def|class)\s+(\w+)", symbol)
+                if not definition:
+                    continue
+                path = os.path.join(PROJECT_ROOT, target)
+                assert os.path.exists(path), f"{name} cites a missing file: {target}"
+                with open(path, "r", encoding="utf-8") as fh:
+                    lines = fh.read().splitlines()
+                assert int(line) <= len(lines), f"{name} cites {target}:{line} out of bounds"
+                actual = lines[int(line) - 1]
+                assert f"{definition.group(1)} {definition.group(2)}(" in actual, (
+                    f"{name} cites {target}:{line} as `{symbol}`, but that line is "
+                    f"`{actual.strip()}`"
+                )
+
+
+def _evidence_capture_script():
+    """
+    Import ``proposal/scripts/capture_aws_config_evidence.py`` by path.
+
+    It is not on ``sys.path`` -- ``proposal/scripts`` is a build-time directory,
+    not a package the application imports.
+
+    Returns:
+        The imported module.
+    """
+    import importlib.util
+
+    path = os.path.join(
+        PROJECT_ROOT, "proposal", "scripts", "capture_aws_config_evidence.py"
+    )
+    spec = importlib.util.spec_from_file_location("capture_aws_config_evidence", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestEvidenceCaptureTooling:
+    """
+    The evidence pack's locator tables are *generated*, so a resolver bug becomes
+    a wrong citation inside a hashed artifact -- harder to spot than a hand-typed
+    one, because the hash makes the file look verified.
+
+    ``capture_aws_config_evidence.py`` resolved each locator with
+    ``needle in line``, so ``def send_sms`` matched inside
+    ``def send_sms_message`` and report 2 cited 383 (the transport helper) for the
+    entry point that is at 449. ``TestEveryMarkdownFile`` catches the wrong
+    output; this pins the resolver that produced it.
+    """
+
+    def test_every_resolved_locator_lands_on_that_locator(self):
+        """A locator must resolve to a whole identifier, not a longer one."""
+        for entry in _evidence_capture_script().code_references():
+            line = entry["line"]
+            assert line is not None, (
+                f"{entry['file']} no longer contains {entry['needle']!r}"
+            )
+            with open(
+                os.path.join(PROJECT_ROOT, entry["file"]), encoding="utf-8"
+            ) as handle:
+                text = handle.read().splitlines()[line - 1]
+            assert re.search(rf"\b{re.escape(entry['needle'])}\b", text), (
+                f"{entry['file']}:{line} does not contain {entry['needle']!r} as a "
+                f"whole identifier, so the table would cite a longer name: "
+                f"{text.strip()!r}"
+            )
 
 
 class TestDocumentedTestCount:

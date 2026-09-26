@@ -651,7 +651,7 @@ and no network: `FakeTransport` / `FakeSmtpConnection` record requests,
 so the agent's failure handling is exercised without touching a provider.
 
 ```bash
-.venv/bin/python -m pytest tests/ -q          # 953 tests
+.venv/bin/python -m pytest tests/ -q          # 957 tests
 .venv/bin/python -m tools.demo_tool_use       # 3 scenarios, 11 checks
 ```
 
@@ -709,7 +709,7 @@ drives the real `FollowUpAgentOrchestrator` and asserts on what the agent *did*:
 
 ### Development
 ```bash
-python web/app.py          # dashboard on http://localhost:8080
+python -m web.app          # dashboard on http://localhost:8080
 # Or
 python demo.py             # offline interactive demo
 ```

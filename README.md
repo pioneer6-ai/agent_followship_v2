@@ -105,6 +105,18 @@ function calling**. See [LLM Tool Layer](#-llm-tool-layer-function-calling).
   installed by hand, and no credentials to run the demo, the tests or the
   dashboard.
 - `pip` package manager
+- **An interpreter to run everything with.** Any environment that has
+  `requirements.txt` installed works; the project does not care which. Two common
+  choices:
+  - **conda** — `conda create -n agent_hackathon python=3.13 && conda activate agent_hackathon`
+  - **venv** — `python3 -m venv .venv && source .venv/bin/activate`
+
+  Many examples in this document, in `QUICKSTART.md`, in the proposal and in the
+  evidence pack spell the interpreter out as `.venv/bin/python`. That is a
+  convention meaning "the project's own interpreter", not a requirement: after
+  activating a conda environment, `python` is the equivalent. Where a command
+  shows `.venv/bin/python <script>`, `python <script>` works just as well from an
+  activated environment.
 
 ### Installation
 
@@ -144,12 +156,13 @@ This will guide you through all agent capabilities with sample data.
 4. **Launch the web dashboard**
 
 ```bash
-python web/app.py
+python -m web.app
 ```
 
 Then open your browser to: `http://localhost:8080`
 
-> The dashboard is `web/app.py` (there is no top-level `app.py`) and it listens on
+> The dashboard is `web/app.py` (there is no top-level `app.py`); run it as the
+> module `web.app` so its imports resolve, and it listens on
 > port **8080**. The port is fixed in `web/app.py`; the script does not accept a
 > `--port` flag.
 
@@ -456,7 +469,7 @@ export SMTP_PASSWORD='the app password'   # hospital_setup.py and the agent read
 #### Option 1: Web Dashboard (Recommended)
 
 ```bash
-python web/app.py
+python -m web.app
 ```
 
 Then open `http://localhost:8080`.
@@ -1181,7 +1194,7 @@ The system includes 8 predefined test scenarios:
 
 ## 🌐 API Endpoints
 
-The dashboard runs on `http://localhost:8080` (`python web/app.py`). All
+The dashboard runs on `http://localhost:8080` (`python -m web.app`). All
 endpoints below are relative to that. `GET /` serves the dashboard page itself.
 
 ### The draft-then-confirm workflow

@@ -122,7 +122,11 @@ Deliberately kept as-is, not replaced:
 ## 9. Validation
 
 - **Baseline before integration:** 612 tests
-- **Current passing test count (just re-run):** **650 passed**
+- **Passing when this branch was reviewed:** **650 passed**
+- **Passing on current `master` (`c39c91f`, 2026-09-26):** **952 passed, 1 skipped**
+  — the suite has grown substantially since this note was written (the LLM
+  message-authoring port, the `.env` configuration refactor and later docs work).
+  Quote *this* figure, not the 650 above, when describing the project today.
 - **Warnings:** 16 (all `DeprecationWarning` from `openpyxl`'s use of `datetime.utcnow()`, pre-existing and unrelated to this branch's changes) — reported separately from failures because there are **zero failures**.
 - **Smoke scenarios manually validated** (standalone script exercising the real orchestrator, not part of the pytest suite):
   - Normal booking ("Yes, book it")
@@ -156,9 +160,10 @@ No manual browser/UI validation was performed as part of this integration.
 ## 11. How to Test This Branch
 
 ```bash
-source .venv/bin/activate
+# Any interpreter satisfying requirements.txt works; a conda env is fine too.
+source .venv/bin/activate        # or: conda activate agent_hackathon
 python -m pytest tests/ -q
-python web/app.py
+python -m web.app
 ```
 
 **Manual test matrix** (via the dashboard's simulate-reply endpoint or a Python shell against `FollowUpAgentOrchestrator.handle_incoming_reply`):

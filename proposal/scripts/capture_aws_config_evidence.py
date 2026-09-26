@@ -178,8 +178,12 @@ def code_references() -> List[Dict[str, Any]]:
         path = PROJECT_ROOT / relative
         line = None
         if path.exists():
+            # Match on word boundaries, not as a bare substring: ``def send_sms``
+            # appears inside ``def send_sms_message``, and the substring search
+            # used to report the helper's line instead of the tool's.
+            pattern = re.compile(rf"\b{re.escape(needle)}\b")
             for number, text in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if needle in text:
+                if pattern.search(text):
                     line = number
                     break
         found.append({"file": relative, "needle": needle, "line": line})

@@ -137,7 +137,7 @@ Three questions are kept apart on purpose.
 The model **cannot** take an action the rules did not offer. If it is
 unreachable, or answers out of bounds, the rules decide instead — the agent
 degrades, it does not stop. The dashboard builds its decision engine through
-`FollowUpAgentOrchestrator.with_llm_decisions` (`agent/orchestrator.py:383`,
+`FollowUpAgentOrchestrator.with_llm_decisions` (`agent/orchestrator.py:153`,
 `web/app.py:100`), which resolves the vendor from `AGENT_LLM_PROVIDER` via
 `LlmDecisionEngine.from_environment` (`agent/decision.py:384`) and falls back to
 the rule engine when no usable model is configured.
@@ -395,7 +395,7 @@ append to the audit trail evidence 1 is derived from.
   rule engine because the evidence harness pins it
   (`proposal/scripts/generate_audit_record.py:94`), not because a model was
   unavailable: the SDK is installed, a vendor is configured, and the dashboard
-  wires the model (`agent/orchestrator.py:383`, `web/app.py:100`). What the pack
+  wires the model (`agent/orchestrator.py:153`, `web/app.py:100`). What the pack
   does not contain is a *pinned, hash-identified* artifact for that path. The
   trial in section 9.4 is observed behaviour in a running deployment, and this
   document does not dress it up as more than that.
@@ -692,7 +692,10 @@ returns the system to rendering rather than sending, with no data migration.
 
 ## Appendix: reproducing the evidence
 
-Run from the project root, after activating the virtual environment:
+Run from the project root, after activating the environment into which you installed
+`requirements.txt`. `.venv/bin/python` names that interpreter explicitly — it is a
+convention, not a requirement: from an activated environment, including a conda
+environment, plain `python` is equivalent.
 
 ```bash
 .venv/bin/python proposal/scripts/generate_audit_record.py          # regenerates audit_log.json

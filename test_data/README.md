@@ -37,7 +37,20 @@ Natural language format (hardest to parse)
 - Inconsistent formatting
 - Tests LLM's natural language understanding
 
-### 6. **demo_21_critical_patients.csv**
+### 6. **duplicate_test.csv**
+Deliberately overlaps `hospital_patients_format1.csv` to test de-duplication
+- 3 patients: `H001` and `H002` repeat rows from format 1 verbatim, plus one new
+  `H999` that exists nowhere else
+- Upload it *after* importing format 1 and confirm the importer skips the two
+  known patients instead of creating duplicates
+
+### 7. **messy_patients.json**
+Adversarial JSON whose field *values* are shifted
+- Every value sits under the wrong key (`name` holds a phone number, `phone` holds
+  a name, `email` holds a number, and so on)
+- Tests whether the parser maps fields by meaning rather than by position
+
+### 8. **demo_21_critical_patients.csv**
 Purpose-built for the Review Patient Messages workflow, not for parser testing
 - 21 patients, all ~214 days overdue, so every one lands at `critical` urgency
 - Every row's phone and email is the **verified test contact**
@@ -46,11 +59,19 @@ Purpose-built for the Review Patient Messages workflow, not for parser testing
 - Upload it, import it, then open `/staff/outreach`: the import auto-runs a
   cycle, so 21 drafts are waiting
 
+### 9. **escalated_cases_test/**
+Escalation fixtures, not patient-upload input
+- `escalated_cases.json` — 8 sample cases (3 critical, 3 high, 2 normal) with a
+  metadata block describing the distribution
+- `ESC-001.json` … `ESC-008.json` — the same cases as individual files
+- Used to exercise the escalation path; these are loaded by the escalation tooling,
+  not by the upload parser
+
 ## 🧪 How to Test:
 
 1. Start the Flask application:
    ```bash
-   python app.py
+   python -m web.app
    ```
 
 2. Open http://localhost:8080 in your browser
