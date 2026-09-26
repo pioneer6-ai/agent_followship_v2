@@ -1,0 +1,150 @@
+{
+  "generated_at": "2026-09-26T10:40:00+08:00",
+  "report": "08_patient_inbox_receipt",
+  "provenance": {
+    "capture_method": "operator-supplied screenshot",
+    "script_captured": false,
+    "note": "Not produced by proposal/scripts/. The image cannot be re-derived; only its bytes are pinned by the hash below. This is the one artifact in the pack whose source process is a human screen capture rather than a scripted command.",
+    "supplied_file": "copilot-image-55a4f1.png",
+    "supplied_file_sha256": "6302c9b8941f048ede4c527671513d48be1188bfa469c5c5e0e4bd94ea70a2c9",
+    "copied_unchanged": true
+  },
+  "artifact": {
+    "path": "proposal/evidence/screenshots/patient_inbox_received.png",
+    "size_bytes": 365876,
+    "sha256": "6302c9b8941f048ede4c527671513d48be1188bfa469c5c5e0e4bd94ea70a2c9",
+    "format": "PNG",
+    "width": 2840,
+    "height": 1538,
+    "bit_depth": 8,
+    "color_type": 6,
+    "file_mtime": "2026-09-26T10:36+08:00"
+  },
+  "email_client_view": {
+    "thread_header": "9月25日周五 19:18–19:24 (15小时前)",
+    "search_scope": "Dental Appointment Reminder",
+    "sender_display_name": "BrightSmile Dental",
+    "messages_visible": 3,
+    "messages_reported_by_audit": 22,
+    "visible": [
+      {
+        "order": 1,
+        "addressed_to": "Patient 01",
+        "audit_patient_id": "CRIT001",
+        "body_opening": "[DOCTOR-EDITED] Dear Patient 01, this is Dr. Lee from BrightSmile. Your cleaning is well overdue - I have reserved Tuesday 3pm for you. Please reply to confirm.",
+        "collapsed": true
+      },
+      {
+        "order": 2,
+        "addressed_to": "Patient 20",
+        "audit_patient_id": "CRIT020",
+        "body_opening": "Hi Patient 20, our records show your dental cleaning is now 200 days past the date we recommended. We'd like to help you get back on track as soon as possible.",
+        "collapsed": true
+      },
+      {
+        "order": 3,
+        "addressed_to": "Patient 21",
+        "audit_patient_id": "CRIT021",
+        "body_opening": "Hi Patient 21, we've missed you at the clinic. Your cleaning is now 200 days overdue, and we don't want your dental health to wait any longer. Please call us today to book your cleaning. Warm regards, the care team.",
+        "collapsed": false
+      }
+    ],
+    "distinct_body_openings": 3,
+    "note_on_wording": "The three bodies differ in greeting, phrasing and closing, and none of those sentences appears in any template in the repository."
+  },
+  "corroboration": {
+    "audit_source": {
+      "path_at_extraction": "/Users/martinchen/agent_followship_v3/audit_log.json",
+      "inside_this_pack": false,
+      "size_bytes": 1781289,
+      "sha256": "0b2023c05ba2924ff1ff685c6f0422f0a31e164787ad9f732ad7d28166ac5b8f",
+      "note": "Read to write this report; not shipped in the pack, per proposal section 9.4, because the log is append-only and still being written to. The size and SHA-256 identify what was read, not a file a reviewer can check inside this pack.",
+      "last_written": "2026-09-25T19:44+08:00"
+    },
+    "burst": {
+      "window_local": "2026-09-25T19:18:10 -> 2026-09-25T19:24:08 (+08:00)",
+      "window_utc": "2026-09-25T11:18:10 -> 2026-09-25T11:24:08+00:00",
+      "sends": 22,
+      "distinct_patients": 21,
+      "channels": {
+        "email": 22
+      },
+      "directions": {
+        "outbound": 22
+      },
+      "success": {
+        "true": 22
+      },
+      "resends": [
+        {
+          "patient_id": "CRIT001",
+          "timestamps": [
+            "2026-09-25T19:18:10.778487",
+            "2026-09-25T19:23:03.071682"
+          ],
+          "note": "The doctor-edited message to CRIT001 was sent once on its own at 19:18:10 and again as part of the 19:23 batch."
+        }
+      ],
+      "batch": {
+        "window_local": "2026-09-25T19:23:03 -> 2026-09-25T19:24:08 (+08:00)",
+        "sends": 21,
+        "patients": "CRIT001 .. CRIT021",
+        "matches_proposal_9_4": "21 sent, 0 failed"
+      }
+    },
+    "recipient_list": {
+      "file": "test_data/demo_21_critical_patients.csv",
+      "rows": 21,
+      "patient_names": "Patient 01 .. Patient 21",
+      "ids": "CRIT001 .. CRIT021",
+      "distinct_emails": [
+        "martinchenonly1@gmail.com"
+      ],
+      "allow_listed": true,
+      "allow_list_source": "AWS_EMAIL_ALLOWED_ADDRESSES, evidence 2"
+    },
+    "overdue_arithmetic": {
+      "last_visit": "2026-02-23",
+      "recall_days": 14,
+      "cleaning_due": "2026-03-09",
+      "as_of": "2026-09-25",
+      "days_overdue": 200,
+      "note": "The '200 days' in the message body is recomputable from the data the agent was given."
+    },
+    "documented_in_proposal": {
+      "section": "9.4",
+      "what_it_records": "The 21-critical-patient trial on a model configured for decisioning and message authoring: one staff edit honoured, batch confirmed, '21 sent, 0 failed, queue empty'.",
+      "why_this_image_adds_to_it": "Section 9.4 is the operator's console view of the batch. The image is the recipient's mailbox view of three of the same messages."
+    },
+    "cross_checks": [
+      {
+        "check": "run identity",
+        "observed": "11 llm-error entries and 1 llm-guardrail entry",
+        "matches": "the counts proposal section 9.4 quotes for this deployment"
+      },
+      {
+        "check": "run identity",
+        "observed": "1,600 'Decided by: llm' stamps",
+        "matches": "proposal section 9.4 says 944; the log is append-only and has grown since that section was written"
+      }
+    ]
+  },
+  "doctor_edited_marker": {
+    "literal": "[DOCTOR-EDITED]",
+    "emitted_by_software": false,
+    "source_search": "case-insensitive search of the revision returns no source file",
+    "actual_path": "text typed into the draft body by the operator, carried through the draft-edit path",
+    "code_anchors": [
+      "agent/orchestrator.py :: update_pending_send, edited_by",
+      "web/app.py :: edited_by=user_info.get('username')"
+    ]
+  },
+  "does_not_prove": [
+    "that the doctor-edited marker is generated by the software",
+    "that any real patient was contacted (sample data only)",
+    "that the message arrived for the other 18 patients, or for any other mailbox",
+    "that a delivered reminder was read, opened or acted on",
+    "that evidence 7's spam finding was wrong; different message, different time",
+    "that the capture sits inside the pack's own capture window (09:02-09:47 UTC)"
+  ]
+}

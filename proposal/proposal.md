@@ -39,14 +39,18 @@ evidence pack rather than to a demonstration.
 
 The remaining work is not development. It is provisioning: moving the AWS
 account out of the SES sandbox, onboarding the clinic's own domain so reminders
-reach an inbox rather than a spam folder, and subscribing the SMS channel.
+reach the inbox consistently rather than landing in the spam folder, and
+subscribing the SMS channel.
 
 Two findings from the evidence deserve to be read before anything else in this
 document, because both were discovered by measuring rather than assumed:
 
-1. **A live message was delivered to the mailbox and filed as spam.** The
-   provider counted it as delivered; the mailbox put it in the spam folder
-   (section 7, evidence 7). A reminder nobody reads has not reminded anyone.
+1. **Where a live message lands is not yet under our control.** The provider
+   counted one message as delivered while the mailbox filed it in the spam folder
+   (section 7, evidence 7); three later reminders from the same identity reached
+   the inbox unmarked (evidence 8). A reminder nobody reads has not reminded
+   anyone — and at present we cannot predict which of the two outcomes a given
+   send will produce.
 2. **Once a case is escalated, the agent stops touching it.** That is the
    correct design — clinical ambiguity belongs to a human — but it means the
    case is not re-raised if the alert is missed. In the measured run, 9 of 11
@@ -276,12 +280,20 @@ message *and* an independent search of the recipient mailbox.
 | Provider delivery | CloudWatch `AWS/SES`, config set `patient-followup` | Delivery 6, Bounce 0, Complaint 0 |
 | Mailbox arrival | IMAP search of the recipient account | Found — in **spam** |
 
-That trace surfaced the most important operational fact in this pack: **the
-message was delivered, but the mailbox filed it as spam.** It arrived, and it
+That trace surfaced one of the two operational facts that matter most in this pack:
+**the message was delivered, but the mailbox filed it as spam.** It arrived, and it
 would not have reminded anyone. That is not a defect in the agent; it is what
 happens when a sender identity has no domain authentication behind it. It is the
 concrete reason the rollout plan insists on the clinic's own authenticated
 domain rather than a working default.
+
+It is not, however, a uniform outcome, and evidence 8 is where that becomes
+visible: reminders sent from this same identity five hours later arrived in the
+**inbox**, unmarked, with the agent's per-patient wording intact. Placement is
+presently inconsistent rather than uniformly bad, which is a weaker claim than
+"the mail is blocked" and a harder one to engineer around. It makes verified inbox
+placement a rollout gate rather than an assumption, because the sending identity's
+reputation — not the message — is what decides.
 
 ---
 
@@ -374,9 +386,11 @@ append to the audit trail evidence 1 is derived from.
   complete and its failure handling is exercised, but the service itself is not
   subscribed, so SMS attempts currently return `not_subscribed` and fall through
   to the next channel. **This is a provisioning task, not a development one.**
-- **Deliverability.** Delivery currently lands in the recipient's spam folder
-  (evidence 7). Sending must move to a clinic-owned domain with SPF, DKIM and
-  DMARC configured before reminders can be trusted to reach an inbox.
+- **Deliverability.** Placement is currently inconsistent: one message was filed
+  in the recipient's spam folder (evidence 7) while three later ones reached the
+  inbox (evidence 8). Sending must move to a clinic-owned domain with SPF, DKIM
+  and DMARC configured, and verified inbox placement must be demonstrated, before
+  reminders can be trusted to reach a patient.
 - **The model-backed decision path.** This pack's decision counts come from the
   rule engine because the evidence harness pins it
   (`proposal/scripts/generate_audit_record.py:94`), not because a model was
@@ -404,13 +418,16 @@ in `proposal/scripts/` against the revision named on the first page.
 | 5 | `05_dashboard_runtime.md` | The application starts, serves its dashboard and patient portal, answers its JSON API and executes operator commands |
 | 6 | `06_live_delivery.md` | A real message was transmitted through the agent's own tool layer, and the provider accepted it with a message id |
 | 7 | `07_delivery_confirmation.md` | That message was counted as *delivered* by the provider's own telemetry, and independently found in the recipient mailbox — where it had been filed as spam |
+| 8 | `08_patient_inbox_receipt.md` | Three later reminders from the same identity reached the recipient's **inbox**, unmarked, each carrying the per-patient wording the agent generated |
 | — | `artifacts/` | Raw primary sources (audit snapshot, generation sidecar, pytest output) so figures can be re-derived rather than trusted |
-| — | `screenshots/` | The rendered dashboard and patient portal |
+| — | `screenshots/` | The rendered dashboard, the patient portal, and the recipient's inbox as the patient saw it |
 | — | `00_index.md` | Generated index of every artifact above with its hash and stated purpose |
 
-Reproduction is a single command per artifact; the appendix lists them.
+Reproduction is a single command per artifact; the appendix lists them. Report 8's
+image is the one exception — it was contributed by the operator rather than captured,
+and the index marks it as such rather than implying a command that does not exist.
 
-The same seven reports are also consolidated into a single printable document,
+The same eight reports are also consolidated into a single printable document,
 `proposal/Patient_Followup_Agent_Deployment_Evidence.pdf`, which restates every
 figure, re-checks each artifact hash and states plainly what the pack does and
 does not prove. It is generated from `proposal/deployment_evidence.md` by
@@ -529,17 +546,46 @@ the batch and delivered it: 21 sent, 0 failed, queue empty.
   the edited text, not the draft it replaced.
 - *The confirmation gate holds.* Drafting transmitted nothing, and a cancelled
   batch of 21 recorded no outbound events at all.
+- *Some of it reached an inbox.* Three of the batch's messages were seen in the
+  recipient's inbox, unmarked, five hours after the trial (evidence 8). The
+  recipients' side of the batch is therefore documented, not only the sender's.
+
+![The recipient's mailbox, showing three of the batch's reminders delivered to the inbox](evidence/screenshots/patient_inbox_received.png)
+
+The screenshot is the recipient's view of the same batch the console reported as
+`21 sent, 0 failed`: one thread, three messages, every sender line reading
+BrightSmile Dental. The three bodies differ from one another in greeting, phrasing
+and closing, and none of those sentences appears in any template in the
+repository — that is the model authorship the audit record claims, seen from the
+receiving end. The message marked `[DOCTOR-EDITED]` is the staff edit, and it is
+worth noting that the marker itself is not a label the software emits: it is the
+operator's own text, carried through the draft-edit path (`agent/orchestrator.py`,
+`update_pending_send`). The image cannot be re-derived and its recipients are sample
+records, so evidence 8 states both limits rather than leaving them to be inferred.
 
 **What it does not establish.**
 
 - *Not deliverability.* All 21 sends were addressed to a single verified test
   mailbox rather than to 21 separate patients, and the SMS channel is
   unprovisioned in this account (section 7.2). The trial exercised the email path
-  only, and the spam-placement finding in section 7.2 still stands.
+  only. Evidence 8 shows three of those messages in the inbox, while the
+  spam-placement finding in section 7.2 shows an earlier message in spam: the two
+  together mean placement is inconsistent, not that it is solved. This remains the
+  strongest reason the rollout plan gates on a clinic-owned authenticated domain.
+- *Not a placement rate.* Three messages in one mailbox is an existence proof of
+  inbox delivery. It says nothing about what fraction of a real cohort would
+  arrive, and evidence 8 states that limit itself.
+- *Not a frozen count.* The figures above are quoted as at the observation on 25
+  September 2026. The record is append-only and still being written to: the same
+  log now carries 1,600 `Decided by: llm` decisions, while the 11 `llm-error` and
+  one `llm-guardrail` entries are unchanged. Read these numbers as a snapshot of a
+  moving log, which is why the log itself is not shipped as a fixed artifact.
 - *Not a reproducible artifact.* This is observed behaviour in a running
-  deployment on 25 September 2026, read from the live append-only audit log. It is
-  deliberately **not** offered as a hash-identified member of the evidence pack in
-  section 8, and should not be cited as one.
+  deployment on 25 September 2026, read from the live append-only audit log. Neither
+  the audit log nor evidence 8's screenshot is offered as a hash-identified,
+  script-reproducible member of the evidence pack in section 8 — the log because it
+  is still being written to, the screenshot because it was contributed by hand — and
+  neither should be cited as though it were.
 
 ---
 
@@ -583,14 +629,15 @@ restricted to an explicit allow-list of verified test contacts.
 | Phase | Duration | Content | Exit criterion |
 | --- | --- | --- | --- |
 | 1. Pilot on test contacts | 1 week | Run the loop against a small allow-list of clinic-owned test contacts; validate copy, tone, timing and escalation | Signed-off message templates and escalation thresholds |
-| 2. Production provisioning | 1–2 weeks | SES production access, clinic-owned domain with SPF/DKIM/DMARC, SMS service subscription and origination identity | The sandbox limits in section 7.2 no longer apply, and a test send reaches the inbox, not spam |
+| 2. Production provisioning | 1–2 weeks | SES production access, clinic-owned domain with SPF/DKIM/DMARC, SMS service subscription and origination identity | The sandbox limits in section 7.2 no longer apply, and repeated test sends reach the inbox consistently rather than inconsistently |
 | 3. Supervised cohort | 2–4 weeks | Real patients, restricted cohort; staff review every escalation; messages capped well below policy maximums | Escalation rate and patient responses match clinical expectation |
 | 4. General rollout | Ongoing | Full patient population within policy limits, with monthly review of the audit record | — |
 
 Two sequencing points matter more than the schedule. **Deliverability gates
-phase 3**, not phase 2: until a clinic-owned authenticated domain is sending, a
-reminder that lands in spam is indistinguishable from no reminder at all, and
-enrolling real patients before that is testing the wrong thing. **Escalation
+phase 3**, not phase 2: until a clinic-owned authenticated domain is sending, where
+a reminder lands is not something we control — one message in spam and three in the
+inbox from the same identity is the measurement that says so — and enrolling real
+patients while that is unresolved is testing the wrong thing. **Escalation
 monitoring gates phase 3** for the reason in section 9.2 — a terminal case is not
 re-raised, so the alert channel has to be one staff actually watch.
 
@@ -608,11 +655,11 @@ returns the system to rendering rather than sending, with no data migration.
 | Duplicate or excessive contact | Patient annoyance, complaints | Reminder budget from clinic policy applied before escalation; quiet periods enforced as a hard floor |
 | Sandbox limits mistaken for production capacity | Under-delivery at scale | Stated explicitly in section 7.2; quota is checked as part of the evidence pack |
 | Silent delivery failure | False confidence | Provider ID treated as acceptance only; SES delivery events configured as the separate delivery claim; the live check in evidence 7 caught a real deliverability failure that a message id alone would have hidden |
-| **Sending identity has no domain authentication, so reminders land in spam** | Recall silently fails while reports show success | **Measured, not hypothetical** — evidence 7. Mitigated by moving to a clinic-owned domain with SPF, DKIM and DMARC before any real patient cohort, and by treating verified inbox placement as a rollout gate rather than an assumption |
+| **Sending identity has no domain authentication, so placement is unpredictable** | Recall silently fails while reports show success | **Measured, not hypothetical** — evidence 7 found one message in spam, evidence 8 found three later ones in the inbox. Not deterministic, which is worse to plan around than a consistent failure. Mitigated by moving to a clinic-owned domain with SPF, DKIM and DMARC before any real patient cohort, and by treating verified inbox placement as a rollout gate rather than an assumption |
 | **An escalation is missed and the case is never re-raised** | A patient in difficulty goes uncontacted | **Measured, not hypothetical** — 9 of 11 cases ended escalated, and a terminal case is not revisited (section 9.2). Mitigated by routing escalations to a monitored queue, applying an ageing report to the escalation list, and confirming the monitor with the clinic before phase 3 |
 | SMS channel unavailable at the account level | Reminders lean on email only | `not_subscribed` is already a known outcome the agent falls back from; provisioning the service and an origination identity is a tracked open item |
 | Test activity contaminating the audit record | Weakened governance | **Found during this work:** the audit logger resolves `audit_log.json` relative to the working directory and exposes no injectable path (`agent/action_handlers.py:305`), so the test suite appends to the production record — in this workspace the file grew from 62,151 to 124,306 bytes purely from running pytest. Evidence 1 uses a frozen hash-identified snapshot to stay reproducible, and the dashboard capture runs in a scratch directory for the same reason. Isolating the audit path in the product itself is a prerequisite for production sign-off |
-| Model unavailability or unsafe output | Broken decisioning | Rules-only path is the fallback; behaviour is identical, minus judgement calls. Exercised in the live trial (section 9.4): against 944 accepted model decisions the record shows 11 `llm-error` and 1 `llm-guardrail` fallback, each carrying its own reason rather than degrading silently |
+| Model unavailability or unsafe output | Broken decisioning | Rules-only path is the fallback; behaviour is identical, minus judgement calls. Exercised in the live trial (section 9.4): against the 944 accepted model decisions observed at that time, the record shows 11 `llm-error` and 1 `llm-guardrail` fallback, each carrying its own reason rather than degrading silently |
 
 ---
 
@@ -664,7 +711,9 @@ Run from the project root, after activating the virtual environment:
 Evidence 6 transmits to a real mailbox and therefore refuses to run without
 `--approve`; every other script is read-only with respect to the outside world.
 Evidence 1 depends on the generator in the first line, because the audit log is
-appended to rather than recomputed.
+appended to rather than recomputed. Evidence 8 has no command here: its image was
+contributed by the operator rather than captured, which is why the index names it as
+hand-contributed instead of listing a script for it.
 
 Three prerequisites apply. Evidences 2, 6 and 7 read live AWS state, so the shell
 must hold valid credentials for the account — on the machine used here that meant

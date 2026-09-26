@@ -29,6 +29,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT_DIR = PROJECT_ROOT / "proposal" / "evidence"
 INDEX_NAME = "00_index.md"
 
+# Artifacts that were contributed by hand rather than produced by a capture
+# script in this directory. Declared explicitly so the index never implies a
+# script that does not exist. Keyed by path relative to the evidence directory.
+HAND_CONTRIBUTED = {
+    "screenshots/patient_inbox_received.png": (
+        "Supplied by the operator as a screen capture, not produced by a script in "
+        "`proposal/scripts/`. See evidence 8 for what it shows and what it does not."
+    ),
+}
+
 
 def sha256_of(path: Path) -> str:
     """
@@ -114,12 +124,16 @@ def collect(out_dir: Path) -> List[Dict[str, Any]]:
     if artifacts_dir.is_dir():
         for path in sorted(artifacts_dir.rglob("*")):
             if path.is_file():
+                name = str(path.relative_to(out_dir))
                 entries.append(
                     {
                         "kind": "raw artifact",
-                        "name": str(path.relative_to(out_dir)),
+                        "name": name,
                         "title": path.name,
-                        "purpose": "Primary source retained so the figures in the reports can be recomputed.",
+                        "purpose": HAND_CONTRIBUTED.get(
+                            name,
+                            "Primary source retained so the figures in the reports can be recomputed.",
+                        ),
                         "size_bytes": path.stat().st_size,
                         "sha256": sha256_of(path),
                     }
@@ -129,12 +143,16 @@ def collect(out_dir: Path) -> List[Dict[str, Any]]:
     if shots_dir.is_dir():
         for path in sorted(shots_dir.rglob("*")):
             if path.is_file():
+                name = str(path.relative_to(out_dir))
                 entries.append(
                     {
                         "kind": "visual artifact",
-                        "name": str(path.relative_to(out_dir)),
+                        "name": name,
                         "title": path.name,
-                        "purpose": "Rendered or captured output from the running system.",
+                        "purpose": HAND_CONTRIBUTED.get(
+                            name,
+                            "Rendered or captured output from the running system.",
+                        ),
                         "size_bytes": path.stat().st_size,
                         "sha256": sha256_of(path),
                     }
@@ -161,11 +179,12 @@ def render_markdown(entries: Sequence[Dict[str, Any]]) -> str:
         "",
         f"Generated: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
         "",
-        "Every artifact listed here was produced by a script in",
-        "`proposal/scripts/` against the deployment revision recorded in",
-        "evidence 3. Hashes are of the artifact as it exists in this pack, so a",
-        "reviewer can confirm they are reading the same bytes the proposal was",
-        "written from.",
+        "Every artifact listed here was either captured by a script in",
+        "`proposal/scripts/` or contributed by hand; where an artifact was",
+        "contributed by hand, its entry below says so. Captures were taken against",
+        "the deployment revision recorded in evidence 3. Hashes are of the artifact",
+        "as it exists in this pack, so a reviewer can confirm they are reading the",
+        "same bytes the proposal was written from.",
         "",
         "## Reports",
         "",

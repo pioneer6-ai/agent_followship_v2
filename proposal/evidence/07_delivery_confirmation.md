@@ -48,6 +48,10 @@ it. It is a sending-identity problem, not a software
 problem -- see the deliverability item in the proposal's
 risk table.
 
+> Placement is not uniform, and this report is not the last word on it. Evidence 8
+> records three later messages from the same system landing in the inbox. The two
+> observations concern different messages at different times; both are reported.
+
 Message headers observed:
 
 ```

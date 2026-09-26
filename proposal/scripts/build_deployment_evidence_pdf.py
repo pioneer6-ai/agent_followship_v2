@@ -2,10 +2,12 @@
 """
 Render the consolidated deployment evidence pack to PDF.
 
-The pack under ``proposal/evidence/`` is a set of seven independently captured
-reports plus their raw artifacts. Each report is readable on its own, but a
-reviewer deciding on a deployment wants them in one place, with the figures
-restated and the artifact hashes re-checked. This script builds that document.
+The pack under ``proposal/evidence/`` is a set of eight reports plus their raw
+artifacts: seven captured by script, and one -- report 8's mailbox screenshot --
+contributed by the operator, which no script can reproduce. Each report is readable
+on its own, but a reviewer deciding on a deployment wants them in one place, with
+the figures restated and the artifact hashes re-checked. This script builds that
+document.
 
 It reuses the proposal's pipeline rather than copying it: ``build_pdf.py`` does
 markdown -> styled HTML (pandoc) -> PDF (headless Chrome) with the shared

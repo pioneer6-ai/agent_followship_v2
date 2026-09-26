@@ -1,12 +1,13 @@
 # Evidence pack index
 
-Generated: 2026-09-25T09:47:42+00:00
+Generated: 2026-09-26T02:44:30+00:00
 
-Every artifact listed here was produced by a script in
-`proposal/scripts/` against the deployment revision recorded in
-evidence 3. Hashes are of the artifact as it exists in this pack, so a
-reviewer can confirm they are reading the same bytes the proposal was
-written from.
+Every artifact listed here was either captured by a script in
+`proposal/scripts/` or contributed by hand; where an artifact was
+contributed by hand, its entry below says so. Captures were taken against
+the deployment revision recorded in evidence 3. Hashes are of the artifact
+as it exists in this pack, so a reviewer can confirm they are reading the
+same bytes the proposal was written from.
 
 ## Reports
 
@@ -34,8 +35,8 @@ The messaging transport is wired to named AWS services in a named region, it sen
 
 The deployment was validated against a specific, identifiable revision of the code on a specific interpreter with specific library versions. Anyone re-running the project can confirm they are comparing like with like before judging any other evidence in this pack.
 
-- Size: 1,471 bytes
-- SHA-256: `d9e43d0f5876f536971a03daa7d6831ca02bde14c3478533c21ec42536aaee9e`
+- Size: 1,788 bytes
+- SHA-256: `f7de4397ab358fde7f00f17e735a9540e258a05751843b4f1335b405e23de4f5`
 
 ### `04_test_suite.md`
 
@@ -43,8 +44,8 @@ The deployment was validated against a specific, identifiable revision of the co
 
 The revision identified in evidence 3 passes its full automated test suite on the recorded interpreter. The suite is the executable form of the behaviour contracts: tool schemas, error taxonomy, provider selection, agent loop control flow, delivery gating and the web API. The verbatim pytest output is stored alongside this file.
 
-- Size: 2,911 bytes
-- SHA-256: `a58c7fb56a9604730087eb7e0ea15d8db91d147e7eae2c8736f62901b3828b54`
+- Size: 3,228 bytes
+- SHA-256: `a53602b82f2e15354317ec7298f7427947a6d3fcc5dd5911342f46e713308af6`
 
 ### `05_dashboard_runtime.md`
 
@@ -70,8 +71,17 @@ A message was handed to the real provider through the agent's own tool layer and
 
 Evidence 6 shows the provider accepted a message. This artifact shows what happened to it afterwards, from two independent vantage points: the provider's own delivery telemetry and the recipient mailbox. These are different claims and are kept separate on purpose.
 
-- Size: 2,342 bytes
-- SHA-256: `5fd63e74232ac2e1453f2dcd16272d33a015548bd6ff592d747598ffae82780d`
+- Size: 2,589 bytes
+- SHA-256: `5f9b34db0ca43398bee5596d990de0985a0c86153783a74421c6f6e8b277d629`
+
+### `08_patient_inbox_receipt.md`
+
+*Deployment evidence 8 - Patient inbox receipt*
+
+Reminders written and sent by this agent through the configured SES identity reached the recipient's **inbox**, rendered as ordinary mail from "BrightSmile Dental", with the per-patient generated wording intact. It is a third vantage point on delivery alongside the provider telemetry and the IMAP search in evidence 7, and it disagrees with evidence 7 on where the mail was filed. Two limits travel with the image: it was supplied by the operator rather than captured by a script, so it cannot be re-derived, and its recipients are the project's own sample patient list, which resolves to a single allow-listed mailbox. No real patient appears in it.
+
+- Size: 8,863 bytes
+- SHA-256: `6ff287cbeead04c5491f5004822d24409f8080bfc14b145fdd0e046d3e47d0a5`
 
 ## Supporting artifacts
 
@@ -83,6 +93,7 @@ Evidence 6 shows the provider accepted a message. This artifact shows what happe
 | `screenshots/dashboard_cases_api.json` | visual artifact | 3,824 | `393bcba9f050eb10` |
 | `screenshots/dashboard_overview.png` | visual artifact | 475,711 | `3c4e06f485f6bf9d` |
 | `screenshots/dashboard_status_api.json` | visual artifact | 569 | `acb61130deebd2a4` |
+| `screenshots/patient_inbox_received.png` | visual artifact | 365,876 | `6302c9b8941f048e` |
 | `screenshots/patient_portal.png` | visual artifact | 736,923 | `b919902b944a98d3` |
 
 ## Provenance of this index

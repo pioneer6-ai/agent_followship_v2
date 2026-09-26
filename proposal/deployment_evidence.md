@@ -6,7 +6,7 @@ date: "26 September 2026"
 
 # Patient Follow-up Agent - Deployment Evidence
 
-**Consolidated evidence pack — seven reports, their raw artifacts, and a re-check of every hash**
+**Consolidated evidence pack — eight reports, their raw artifacts, and a re-check of every hash**
 
 | | |
 | --- | --- |
@@ -14,7 +14,8 @@ date: "26 September 2026"
 | Purpose | Deployment acceptance: what was measured, on which revision, and what remains unproven |
 | Evidence revision | `fbcc6c1ca09a7624fd5f01016e674cacdc4a5287` |
 | Pack location | `proposal/evidence/` |
-| Contents | 7 numbered reports, 3 raw artifacts, 4 visual artifacts |
+| Contents | 8 numbered reports, 3 raw artifacts, 5 visual artifacts |
+| Pack provenance | Reports 1–7 captured by script on 2026-09-25, 09:02–09:47 UTC; report 8 is an operator-supplied screen capture (section 10) |
 | Document date | 26 September 2026 |
 | Rendered by | `proposal/scripts/build_deployment_evidence_pdf.py` |
 
@@ -22,11 +23,13 @@ date: "26 September 2026"
 
 ## 1. How to read this pack
 
-The seven reports under `proposal/evidence/` were captured independently, each by
-its own script, on 25 September 2026 between 09:02 and 09:47 UTC. This document
-consolidates them: it restates every figure, records the SHA-256 of each artifact
-as recomputed for this PDF, and keeps the boundary between *measured* and
-*assumed* explicit.
+The first seven reports under `proposal/evidence/` were captured independently,
+each by its own script, on 25 September 2026 between 09:02 and 09:47 UTC. Report 8
+was contributed afterwards by the operator as a screen capture, which makes it the
+one artifact in this pack that no script produced and nobody can re-derive;
+section 10 states what that costs. This document consolidates the eight: it
+restates every figure, records the SHA-256 of each artifact as recomputed for this
+PDF, and keeps the boundary between *measured* and *assumed* explicit.
 
 Three kinds of claim appear in the pack, and they are not interchangeable. It
 matters which one a figure belongs to when deciding whether the deployment is
@@ -36,7 +39,7 @@ ready.
 | --- | --- | --- |
 | **Configuration** | The deployment is wired to named services with named identities | 2, 3 |
 | **Behaviour** | The software did what it is specified to do, reproducibly | 1, 4, 5 |
-| **Transmission** | A real message left the system and arrived somewhere | 6, 7 |
+| **Transmission** | A real message left the system and arrived somewhere | 6, 7, 8 |
 
 Only class three is evidence about the outside world. Evidence 1 and 5 exercise
 the agent's real code paths but with the offline printing delivery backend, so
@@ -50,10 +53,13 @@ The agent runs its full loop, 811 tests pass on a pinned revision, the dashboard
 and patient portal serve live data, and the AWS paths are wired to SES and End
 User Messaging SMS. A real email was transmitted through the agent's own tool
 layer, accepted by the provider, counted as delivered in the provider's
-telemetry, and then found in the recipient's **spam** folder. SES is still in the
-sandbox and the SMS channel is not subscribed. The deployment is functionally
-complete and provisionally blocked — the blockers are account provisioning and
-sender reputation, not code.
+telemetry, and then found in the recipient's **spam** folder; three later reminders
+were separately observed sitting in that same inbox (report 8). Placement is
+therefore inconsistent rather than uniformly bad, which does not change the fix — a
+clinic-owned, authenticated domain, warmed — only the odds of a reminder being seen
+in the meantime. SES is still in the sandbox and the SMS channel is not subscribed.
+The deployment is functionally complete and provisionally blocked — the blockers
+are account provisioning and sender reputation, not code.
 
 ---
 
@@ -68,6 +74,7 @@ sender reputation, not code.
 | 5 | `05_dashboard_runtime.md` | Application starts, serves dashboard and portal, answers its API, runs operator commands | Running |
 | 6 | `06_live_delivery.md` | A real message was handed to the provider through the agent's tool layer and accepted | Sent |
 | 7 | `07_delivery_confirmation.md` | Provider telemetry counted it delivered; the mailbox had filed it as spam | **Delivered to spam** |
+| 8 | `08_patient_inbox_receipt.md` | Three later reminders from the same system seen in the recipient's inbox, per-patient bodies intact | **Delivered to inbox** (sample data) |
 
 ---
 
@@ -258,7 +265,7 @@ Codebase size — 78 files, 32,073 lines:
 > in the sibling clone `agent_followship_v3`, because that is where the virtualenv
 > that produced the capture sits. The clone this PDF ships in
 > (`agent_followship_v2`) has no `.venv`, and its installed dependency set is the
-> one listed in section 11 rather than the list above. The evidence is valid for
+> one listed in section 12 rather than the list above. The evidence is valid for
 > the recorded revision and the recorded interpreter; it is not a claim about the
 > virtualenv in this directory.
 
@@ -504,36 +511,143 @@ Message-ID: <010e01a0d7e6a32e-de7255b4-a647-42f4-8e67-7c915e659186-000000@ap-sou
 
 ---
 
-## 10. Artifact integrity — hashes as recomputed for this PDF
+## 10. Evidence 8 — Patient inbox receipt
+
+Contributed 2026-09-26T10:36+08:00 by the operator as a screen capture.
+
+**Claim.** Reminders written by the agent and sent through the configured SES
+identity reached the recipient's **inbox**, rendered as ordinary mail from
+"BrightSmile Dental", with the per-patient generated wording intact. This is a third
+vantage point on delivery alongside the provider telemetry and the IMAP search in
+evidence 7, and it disagrees with evidence 7 on where the mail was filed.
+
+![Three reminders from BrightSmile Dental sitting in the recipient's inbox](evidence/screenshots/patient_inbox_received.png)
+
+| | |
+| --- | --- |
+| File | `proposal/evidence/screenshots/patient_inbox_received.png` |
+| Size | 365,876 bytes |
+| Dimensions | 2,840 x 1,538, 8-bit RGBA PNG |
+| SHA-256 | `6302c9b8941f048ede4c527671513d48be1188bfa469c5c5e0e4bd94ea70a2c9` |
+| Thread header | `9月25日周五 19:18–19:24 (15小时前)` — Friday 25 September, 19:18 to 19:24, "15 hours ago" |
+
+Three messages in one thread, every sender line reading "BrightSmile Dental". The
+first two are collapsed to their opening line, the third is expanded:
+
+| Order | Opening line as displayed | Addressed to |
+| --- | --- | --- |
+| 1 | `[DOCTOR-EDITED] Dear Patient 01, this is Dr. Lee from BrightSmile. Your cleaning is well overdue - I have reserved Tuesday 3pm for you. Please reply to confirm.` | Patient 01 |
+| 2 | `Hi Patient 20, our records show your dental cleaning is now 200 days past the date we recommended. We'd like to help you get back on track as soon as possible.` | Patient 20 |
+| 3 | `Hi Patient 21, we've missed you at the clinic. Your cleaning is now 200 days overdue, and we don't want your dental health to wait any longer. Please call us today to book your cleaning. Warm regards, the care team.` | Patient 21 |
+
+The three bodies differ in greeting, phrasing and closing. These are not one template
+with a substituted name, and none of those sentences appears in any template in the
+repository.
+
+### What corroborates it
+
+**The proposal already documents this batch.** Section 9.4 records the trial: a model
+configured for decisioning and message authoring, run against a cohort of 21 patients
+all scored `critical`, a staff edit honoured, then "Confirm Selected" reporting
+`21 sent, 0 failed, queue empty`. Section 10 is the recipient-side view of that same
+event — the console and the mailbox, one batch.
+
+**The run's audit log puts the same messages in the same window.** The log for that
+deployment (the sibling clone's append-only `audit_log.json`, which section 9.4
+explains is deliberately kept out of the pack) contains:
+
+| Timestamp (+08:00) | Patient | Channel | Success | Preview |
+| --- | --- | --- | --- | --- |
+| 2026-09-25T19:18:10 | CRIT001 | email | true | `[DOCTOR-EDITED] Dear Patient 01, this is Dr. Lee from BrightSmile. Your cleaning is well overdue - I…` |
+| 2026-09-25T19:23:03 | CRIT001 | email | true | `[DOCTOR-EDITED] Dear Patient 01, this is Dr. Lee from BrightSmile. Your cleaning is well overdue - I…` |
+| 2026-09-25T19:24:06 | CRIT020 | email | true | `Hi Patient 20, our records show your dental cleaning is now 200 days past the date we reco…` |
+| 2026-09-25T19:24:08 | CRIT021 | email | true | `Hi Patient 21, we've missed you at the clinic. Your cleaning is now 200 days overdue, and…` |
+
+The first row is a single send of the edited draft; the batch is 21 sends to
+`CRIT001`–`CRIT021` between 19:23:03 and 19:24:08, all `channel=email`, all
+`direction=outbound`, all `success=true`, which is section 9.4's `21 sent, 0 failed`.
+Two details identify the log as that run rather than a similar one: it carries exactly
+the 11 `llm-error` and 1 `llm-guardrail` entries section 9.4 quotes, and its
+`Decided by: llm` count has grown from the 944 section 9.4 records to 1,600 — an
+append-only record still being written to, which is the reason it stays out of the
+pack. A reviewer can therefore check this section's arithmetic against
+`test_data/demo_21_critical_patients.csv` and the proposal, but not against a file
+this pack ships, and report 8 says so.
+
+Two further cross-checks, both recomputable from files in this repository:
+
+- `CRIT001`, `CRIT020` and `CRIT021` are the ID column of
+  `test_data/demo_21_critical_patients.csv`: 21 rows named `Patient 01` to
+  `Patient 21`, every one carrying `martinchenonly1@gmail.com` — one of the two
+  addresses in the `AWS_EMAIL_ALLOWED_ADDRESSES` allow-list of evidence 2. That is
+  why three patients share one mailbox and one thread.
+- The "200 days" in the body is not decorative. Those rows record a last visit of
+  2026-02-23 and a recall window of 14 days, so the cleaning fell due on 2026-03-09;
+  on 25 September 2026 that is exactly 200 days overdue.
+
+### What it does not prove
+
+> This is the one artifact in the pack that no capture script produced. No one can
+> re-run it, and the hash above pins the bytes this pack ships, not the provenance of
+> the screen it records.
+
+- **That the doctor-edited marker is generated.** `[DOCTOR-EDITED]` appears nowhere
+  in the repository; a case-insensitive search of the revision returns no source
+  file. It is text the operator typed into the draft body, carried through the
+  draft-edit path (`update_pending_send` / `edited_by` in `agent/orchestrator.py`,
+  reached from `web/app.py`), not a label the software emits.
+- **That any real patient was contacted.** The recipients are the sample list.
+- **That the message arrived for the other 18 patients, or anywhere else.** One
+  mailbox, one provider, three of 21 messages shown: an existence proof of inbox
+  placement, not a placement rate.
+- **That a delivered reminder is a read reminder.** An inbox is not an open, a reply
+  or a booking.
+- **That evidence 7 was wrong.** Evidence 7's read-only IMAP search found its own
+  subject fragment in spam. Both observations hold: different messages, different
+  times, and placement for a new sending identity on a free mailbox provider is
+  exactly the sort of thing that varies. The domain and reputation work stays
+  necessary; this artifact does not reduce it.
+- **That the capture sits inside the pack's own capture window.** 19:18–19:24
+  +08:00 is 11:18–11:24 UTC, whereas every scripted capture ran between 09:02 and
+  09:47 UTC that day. It is a later event observed after the fact, not a re-render.
+
+---
+
+## 11. Artifact integrity — hashes as recomputed for this PDF
 
 The pack's value rests on artifacts being the same bytes the reports were written
 from. Every artifact was re-hashed for this document. Full SHA-256, with the size
-recorded in `00_index.md` beside the size on disk:
+recorded in `00_index.md` beside the size on disk. One row is marked
+hand-contributed: its hash pins the bytes this pack ships, but no capture script
+produced it, so there is nothing for a reviewer to re-run.
 
 | Artifact | Size on disk | SHA-256 | Matches index |
 | --- | ---: | --- | --- |
-| `00_index.md` | 4,679 | `417924bc42b1e943e98de8029260fdf8ad9abf335a36505e99f9c82e6425a82d` | n/a (is the index) |
+| `00_index.md` | 5,728 | `d48bdd21b125ba4cdd61a44fdcb46a2a73cb621851b01f670d60bbded6dd2c8d` | n/a (is the index) |
 | `01_agent_decision_audit.md` | 5,155 | `1b9c73463a6718c18e0373640ef64cc77a918d383295a1c5b460fbca3f573f41` | yes |
 | `02_aws_messaging_config.md` | 2,302 | `2dab4ce38689760c3ef5184f86c2b5666abf9173876491f6228c863d7ee43f01` | yes |
-| `03_runtime_and_repository.md` | 1,788 | `f7de4397ab358fde7f00f17e735a9540e258a05751843b4f1335b405e23de4f5` | **no** — index says 1,471 B / `d9e43d0f…` |
-| `04_test_suite.md` | 3,228 | `a53602b82f2e15354317ec7298f7427947a6d3fcc5dd5911342f46e713308af6` | **no** — index says 2,911 B / `a58c7fb5…` |
+| `03_runtime_and_repository.md` | 1,788 | `f7de4397ab358fde7f00f17e735a9540e258a05751843b4f1335b405e23de4f5` | yes (was stale — see below) |
+| `04_test_suite.md` | 3,228 | `a53602b82f2e15354317ec7298f7427947a6d3fcc5dd5911342f46e713308af6` | yes (was stale — see below) |
 | `05_dashboard_runtime.md` | 3,368 | `9a800d1e377ede06f2f538091a763c46822b3e98a4f1b37b3b8daadfbe3d9a52` | yes |
 | `06_live_delivery.md` | 2,092 | `ba29e0695c1cc155a25e605f7cd89d0d6dc77191d4c38604e9d5f108e24e4553` | yes |
-| `07_delivery_confirmation.md` | 2,342 | `5fd63e74232ac2e1453f2dcd16272d33a015548bd6ff592d747598ffae82780d` | yes |
+| `07_delivery_confirmation.md` | 2,589 | `5f9b34db0ca43398bee5596d990de0985a0c86153783a74421c6f6e8b277d629` | yes |
+| `08_patient_inbox_receipt.md` | 8,863 | `6ff287cbeead04c5491f5004822d24409f8080bfc14b145fdd0e046d3e47d0a5` | yes |
 | `artifacts/audit_log_snapshot.json` | 261,297 | `76551f7389296eda3ff1d905ec5ed8c486f98fccd12cff0db80e9cd9bff06644` | yes |
 | `artifacts/audit_log.generation.json` | 4,782 | `42da6d67abc3fdad5415daab3e377b2b44c9c3531acad79079b20df89eb59243` | yes |
 | `artifacts/pytest_output.txt` | 2,216 | `1da74e80729d72a81aeb2561d0504b1ee665df426d930122ac12dfb41feeeff6` | yes |
 | `screenshots/dashboard_cases_api.json` | 3,824 | `393bcba9f050eb10236fdde27ce9dcf8658ef16ef96df26e29f1a0fbc3a6e3da` | yes |
 | `screenshots/dashboard_overview.png` | 475,711 | `3c4e06f485f6bf9d95226442f8c71957674596d287a2ea7612e50c603ffc5e7a` | yes |
 | `screenshots/dashboard_status_api.json` | 569 | `acb61130deebd2a46f6c3d05620cecf205514c4dcbb67fc315511d9448e3534a` | yes |
+| `screenshots/patient_inbox_received.png` | 365,876 | `6302c9b8941f048ede4c527671513d48be1188bfa469c5c5e0e4bd94ea70a2c9` | yes (hand-contributed; section 10) |
 | `screenshots/patient_portal.png` | 736,923 | `b919902b944a98d3cc730abafc2248ea60f991bce62c82bbdac700dfcd486b20` | yes |
 
-### The two stale index entries
+### The two stale index entries — and the one artifact no script produced
 
-`00_index.md` records hashes and sizes for every report. Entries 3 and 4 no
-longer match their files. The cause is identifiable and benign in substance, but
-it is exactly the failure mode a hash is supposed to catch, so it is reported
-rather than quietly fixed:
+`00_index.md` records hashes and sizes for every report. In the revision this pack
+was first built from, entries 3 and 4 did not match their files. That is exactly the
+failure mode a hash exists to catch, so it was reported rather than quietly fixed,
+and it is recorded here for the same reason — as a note on how the pack was
+maintained, not as an open item. It is now closed:
 
 - Commit `0735515` ("docs: point project references at agent_followship_v2 and
   stamp evidence snapshots") added a *snapshot scope* note to `03_…md` and
@@ -541,31 +655,44 @@ rather than quietly fixed:
   `.venv` to `agent_followship_v3/.venv`. The commit body states plainly that
   verbatim captured output was deliberately left untouched.
 - The commit did **not** re-run `proposal/scripts/capture_evidence_index.py`, so
-  the index still carries the pre-edit sizes and hashes for those two files.
+  the index carried the pre-edit sizes and hashes for those two files.
+- The *numbers* in reports 3 and 4 were never in question: they still trace to
+  their JSON sidecars and to `artifacts/pytest_output.txt`. Only the index's
+  byte-for-byte attestation of the two prose files was wrong.
+- Re-running the index capture against the pack as it stands in this revision
+  resolves it: all eight reports and every supporting artifact now match their
+  indexed size and hash. The index also gained the hand-contributed entry for
+  report 8's image, and its preamble now states that an artifact may be contributed
+  by hand rather than captured, because leaving the old wording in place would have
+  claimed a script for that image that does not exist.
 
-Consequences: the *numbers* in reports 3 and 4 are unchanged and still trace to
-their JSON sidecars and to `artifacts/pytest_output.txt` (which still matches its
-indexed hash). What fails is only the index's byte-for-byte attestation of the
-two prose files. Re-running the index capture resolves it, and the index is worth
-regenerating at the same time as the next re-capture.
+Two consequences of report 8 remain, and they are properties of the artifact rather
+than of the index. Its hash is verifiable; its provenance is not — nothing in the
+pack can show that the image is a screen of the mailbox it says it is. And the
+index's attestation for it is only as good as the file the operator supplied.
 
 ### Reviewing this pack, in order
 
 1. Confirm the revision on the first page matches the build under review.
-2. Check `artifacts/pytest_output.txt` against the hash in section 10 — that is
+2. Check `artifacts/pytest_output.txt` against the hash in section 11 — that is
    the one artifact carrying verbatim program output.
 3. Re-derive the evidence 1 counts from `audit_log_snapshot.json` rather than
    reading the tables in section 3.
-4. Read section 12 before accepting the "reading the 100% rate" qualification in
+4. Read section 13 before accepting the "reading the 100% rate" qualification in
    section 3 as a caveat rather than a defect.
+5. Treat section 10 as the weakest link in the chain of custody: it is the only
+   claim here whose source process a reviewer cannot repeat.
 
 ---
 
-## 11. Independent re-run on the current revision
+## 12. Independent re-run on the current revision
 
-The reports above are pinned to `fbcc6c1`. The working tree that ships this PDF
-is at `0735515` (`master`, 2026-09-26), one commit later, and the pack's own
-snapshot-scope notes ask a reader to re-capture rather than extrapolate. So the
+The reports above are pinned to `fbcc6c1`. The working tree that first shipped this
+PDF is at `0735515` (`master`, 2026-09-26), one commit later, and the pack's own
+snapshot-scope notes ask a reader to re-capture rather than extrapolate. The
+revision that ships this document adds report 8 and the index regeneration —
+documentation and one image, no application code — so the re-run below still
+describes the current revision. The
 suite was re-run here, on this clone, to see whether the pass result survives the
 later revision and a different interpreter. It does:
 
@@ -595,7 +722,7 @@ revision, on a different interpreter, and it should be read that way.
 
 ---
 
-## 12. What the pack proves, and what it does not
+## 13. What the pack proves, and what it does not
 
 **Proven.**
 
@@ -605,19 +732,25 @@ revision, on a different interpreter, and it should be read that way.
   precisely enough that another party can reproduce the comparison (evidence 3).
 - The full suite passes at that revision, exit code 0, with verbatim output
   retained (evidence 4), and it still passes one revision later on a different
-  interpreter (section 11).
+  interpreter (section 12).
 - The application starts, serves the dashboard, the patient portal and the JSON
   API, and executes operator commands against its own running process
   (evidence 5).
 - SES accepted a message produced by the agent's own tool layer and returned a
   message id (evidence 6); the provider's telemetry counted deliveries with zero
   bounces and zero complaints (evidence 7).
+- Reminders from this system can land in an inbox and render as ordinary mail from
+  the configured sender, with per-patient generated wording and a figure that
+  recomputes from the sample data (evidence 8). Existence, not rate.
 
 **Not proven, and not to be inferred from the above.**
 
-- **Inbox delivery.** The message was filed as spam. Until sending moves to a
-  clinic-owned domain with SPF, DKIM and DMARC, no reminder can be assumed to
-  have been read (evidence 7).
+- **Inbox delivery as a property.** The delivery-confirmation message was filed as
+  spam (evidence 7) while three later reminders were observed in the inbox
+  (evidence 8), from one mailbox and one provider. Placement is inconsistent, so no
+  reminder can be assumed to have been seen. Until sending moves to a clinic-owned
+  domain with SPF, DKIM and DMARC, this stays a coin toss that happens to have
+  landed well twice.
 - **Real patient transmission.** Evidence 1's 100% success rate is a property of
   the offline printing backend; evidence 5 runs on built-in sample data.
 - **SMS.** The channel is code-complete but the account is not subscribed;
@@ -631,12 +764,16 @@ revision, on a different interpreter, and it should be read that way.
 - **Alert re-raise after escalation.** Nine of eleven cases end escalated and are
   then left alone by design (evidence 1). That is correct behaviour with an
   operational gap behind it if a staff alert is missed.
-- **Hash attestation of reports 3 and 4.** Their index entries are stale
-  (section 10). The figures are unaffected; the byte-level attestation is.
+- **Readership.** Evidence 8 shows three reminders in an inbox. It does not show an
+  open, a reply or a booking, and no patient behaviour is evidenced anywhere in the
+  pack.
+- **Provenance of report 8's image.** Its bytes are pinned by hash; that it is a
+  screen of the mailbox it depicts is the operator's word, and the report says so
+  itself (section 11).
 
 ---
 
-## 13. Open items this pack hands to provisioning
+## 14. Open items this pack hands to provisioning
 
 None of these are development tasks, and each one is the difference between a
 demonstrated system and a usable one:
@@ -644,16 +781,16 @@ demonstrated system and a usable one:
 | # | Item | Evidence | Blocking for |
 | --- | --- | --- | --- |
 | 1 | Move SES out of the sandbox: request production access | 2 | Any population larger than verified test recipients |
-| 2 | Send from a clinic-owned domain with SPF, DKIM, DMARC; warm it | 7 | Reminders reaching an inbox at all |
+| 2 | Send from a clinic-owned domain with SPF, DKIM, DMARC; warm it | 7, 8 | Reminders reaching an inbox consistently rather than sometimes |
 | 3 | Subscribe End User Messaging SMS and onboard an origination identity | 2 | The SMS channel, and therefore the fallback path |
 | 4 | Isolate the audit path during tests | 4 | Production sign-off; currently tests mutate the live audit record |
 | 5 | Decide the escalation re-raise policy — re-alert after N hours, or accept the gap | 1 | Whether a missed staff alert has a safety net |
-| 6 | Regenerate `00_index.md` at the next re-capture | 10 | Byte-level attestation of reports 3 and 4 |
+| 6 | Decide how a hand-contributed artifact is attested — accept the operator's provenance, or require a capture that a script can repeat | 10, 11 | Whether any future screenshot can be treated as more than an existence proof |
 | 7 | Pin the model-backed decision path to its own hash-identified artifact | proposal §7.2 | Any claim about model-driven decisions |
 
 ---
 
-## 14. Reproducing this pack
+## 15. Reproducing this pack
 
 Every report is regenerated by one command, from the project root, in an
 environment with the project's dependencies installed:
@@ -675,6 +812,11 @@ Evidence 6 transmits to a real mailbox and therefore refuses to run without
 `--approve`; every other capture script is read-only with respect to the outside
 world. Evidence 1 depends on the generator in the first line, because the audit
 log is appended to rather than recomputed.
+
+Report 8 has no command in that list and cannot have one: its image is a screen
+capture contributed by the operator, so there is nothing to re-run. The pack's
+hand-contributed artifacts are declared in `proposal/scripts/capture_evidence_index.py`
+(`HAND_CONTRIBUTED`) precisely so the generated index keeps saying so.
 
 Three prerequisites apply. Evidences 2, 6 and 7 read live AWS state, so the shell
 must hold valid credentials for the account. Evidences 5 and 7 drive a local
