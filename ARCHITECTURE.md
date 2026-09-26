@@ -11,7 +11,7 @@ agent_followship_v2/
 ├── requirements.txt            # Python dependencies
 ├── .gitignore                  # Git ignore patterns
 ├── demo.py                     # Interactive demonstration
-├── hospital_setup.py           # THE hospital entry point: BYO LLM + BYO mailbox
+├── hospital_setup.py           # Hospital entry point: mailbox blocks + config checks
 ├── .env.example                # Environment template (copy to .env)
 │
 ├── core/                       # Domain types, no behaviour
@@ -235,45 +235,83 @@ assist). The import path needs no credentials and no network.
 ## The hospital interface (`hospital_setup.py`)
 
 Located at the **repository root**. The clinic-facing surface is deliberately a
-single file with three dataclass blocks, so a hospital can change LLM vendor or
-mailbox without reading any agent code. It is usable two ways: the CLI below, or
-`import hospital_setup` from a hospital's own onboarding service.
+single file with two dataclass blocks -- **and no LLM settings at all**. The model
+is configured only in `.env` (see *Where the LLM configuration lives* below), so
+a clinic changes LLM vendor without touching Python, and this file can never
+outvote the environment a deployment ships. It is usable two ways: the CLI below,
+or `import hospital_setup` from a hospital's own onboarding service.
 
 ```
 hospital_setup.py                    (repository root)
-  LlmSettings    ──environment()──→ AGENT_LLM_PROVIDER / _MODEL / _API_KEY / _BASE_URL
+  (no LLM block: AGENT_LLM_* comes from .env, read by tools/llm_providers.py)
   EmailSettings  ──environment()──→ SMTP_HOST / _PORT / _USERNAME / _PASSWORD,
                                     EMAIL_FROM / EMAIL_FROM_NAME
   AgentSettings  ──environment()──→ AGENT_ESCALATION_EMAIL, policy knobs,
                                     AGENT_LIVE_SENDS, MESSAGING_DRY_RUN
         │
         ├── apply(*, override=True) -> int   writes into os.environ; returns count
-        ├── summary()    -> Dict[str, Any]   secret-free (keys/passwords redacted)
+        ├── summary()    -> Dict[str, Any]   secret-free; says where the LLM came from
         ├── validate()   -> List[str]        pure inspection; [] means good
-        └── environment()-> Dict[str, str]   renders without touching anything
+        └── environment()-> Dict[str, str]   renders without touching anything, and
+                                             never emits an AGENT_LLM_* key
 
-        check_llm()        -> (bool, str)  live one-shot call via tools.llm_providers
+        check_llm()        -> (bool, str)  live one-shot call using the .env settings
         check_email()      -> (bool, str)  live SMTP auth via tools.tls SSL context
         send_test_email(r) -> (bool, str)  one real email, bypassing MESSAGING_DRY_RUN
                                            for that call only
 ```
 
-`LlmSettings.provider` is `anthropic` | `openai` | `azure` | `disabled`; the many
-vendor aliases (`ollama`, `vllm`, `litellm`, `deepseek`, `qwen`, ...) all
+`AGENT_LLM_PROVIDER` in `.env` is `anthropic` | `openai` | `azure` | `disabled`;
+the many vendor aliases (`ollama`, `vllm`, `litellm`, `deepseek`, `qwen`, ...) all
 normalise to `openai`, and an unrecognised name falls back to `anthropic`.
-`LlmProviderConfig.kind` is the *normalised* result, which is why the file says
-`provider` while the config object says `kind` -- `kind` is never an alias.
+`LlmProviderConfig.kind` is the *normalised* result. Because a typo degrades
+rather than raises, `validate()` compares the raw `AGENT_LLM_PROVIDER` against
+`tools.llm_providers.known_provider_names()` so the misspelling is still reported.
 
 Consumption is what makes the file meaningful, and it is asserted by tests:
 
 | Emitted variable | Read by |
 |---|---|
-| `AGENT_LLM_PROVIDER` / `_MODEL` / `_API_KEY` / `_BASE_URL` | `tools.llm_providers.LlmProviderConfig.from_env` |
 | `EMAIL_FROM` / `EMAIL_FROM_NAME` | `tools.config.MessagingConfig`, `SmtpEmailProvider._from_header` |
 | `AGENT_MAX_REMINDERS_BEFORE_ESCALATION` / `AGENT_REMINDER_INTERVAL_DAYS` | `core.config.ClinicPolicyConfig.from_env` |
 
+The LLM variables are read by the same kind of code but from a different source:
+`AGENT_LLM_PROVIDER` / `_MODEL` / `_API_KEY` / `_BASE_URL` /
+`_TIMEOUT_SECONDS` / `_MAX_TOKENS` / `_API_VERSION` / `_ORGANIZATION` /
+`_EXTRA_HEADERS` / `_THINKING_DISABLED` reach
+`tools.llm_providers.LlmProviderConfig.from_env`, which reads `.env` and the
+environment -- never `hospital_setup.py`. `environment()` emits no `AGENT_LLM_*`
+key, and a test asserts exactly that, because otherwise `apply()` would write a
+stale second copy over the deployment's own settings.
+
+### Where the LLM configuration lives
+
+One place, and only one: `.env` (template in `.env.example`), read at startup by
+`tools.config.load_env_file()` and interpreted by `tools.llm_providers`. The real
+call paths are:
+
+| Caller | Path to a real model call |
+|---|---|
+| The DECIDE step | `agent/decision.py` → `tools.llm_providers.create_llm_client(LlmProviderConfig.from_env())` |
+| The tool-use loop | `tools/llm_agent.py` (`ToolUseAgent`) → `create_llm_client()` (same `.env` defaults) |
+| Patient chat replies | `agent/patient_chat.py` |
+| Agent-drafted notifications | `agent/notifications.py` (`MessageComposerAgent._llm_client`) |
+| Dashboard status + probe | `web/app.py` `/api/llm-status`, `/api/llm-check` |
+| The optional import assist | `utils/llm_parser.py` -- reads `AGENT_LLM_MODEL` itself and builds its own `openai` client |
+| The clinic check | `hospital_setup.check_llm()` -- reads the *same* `.env` settings |
+
+`hospital_setup.py` has no LLM dataclass and no `check_llm()` alternative: the
+check reads what the agent will read, so a passing `--check` cannot disagree with
+runtime. `AGENT_LLM_MODEL` also remains the fallback for the legacy
+`AGENT_DECISION_MODEL` knob, both read from the environment.
+
 Design rules that matter:
 
+- **This file never writes an LLM variable.** `environment()` emits only the
+  mailbox, agent and policy keys listed above; `apply()` therefore cannot
+  override `AGENT_LLM_*` from `.env`. That is the point of the split: a clinic's
+  LLM settings come from the deployment's own `.env`, and there is no second
+  copy that can drift. `tests/test_hospital_setup.py` asserts it directly.
 - **`.env` is loaded by the entry points, not by `validate()`.** `main()`,
   `check_llm()`, `check_email()` and `send_test_email()` all call `load_dotenv()`
   first, because the guide tells clinics to *export* `SMTP_PASSWORD` rather than
@@ -610,7 +648,7 @@ and no network: `FakeTransport` / `FakeSmtpConnection` record requests,
 so the agent's failure handling is exercised without touching a provider.
 
 ```bash
-.venv/bin/python -m pytest tests/ -q          # 935 tests
+.venv/bin/python -m pytest tests/ -q          # 937 tests
 .venv/bin/python -m tools.demo_tool_use       # 3 scenarios, 11 checks
 ```
 

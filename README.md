@@ -167,46 +167,109 @@ failing.
 
 ## 🏥 Hospital Setup
 
-Bring your own LLM and bring your own mailbox.
+The clinic owns two things: **the LLM it thinks with** and **the mailbox it sends
+from**. Both are configured through environment variables — and the LLM is
+configured *only* in `.env`, with no Python editing at all.
 
-Everything a clinic configures lives in **one file**:
+**⚠️ IMPORTANT: every real LLM call is configured in the `.env` file.**
+`hospital_setup.py` configures the *mailbox and agent policy* and verifies the
+result; it deliberately holds **no LLM setting and no LLM block**. See
+[Where the LLM configuration lives](#where-the-llm-configuration-lives).
 
-```
-agent_followship_v2/hospital_setup.py        <-- the interface file (repository root)
-```
+### Quick Setup (Recommended)
 
-No other file needs editing to point the agent at a different LLM or a different
-email account.
+1. **Copy the environment template:**
 
 ```bash
-.venv/bin/python hospital_setup.py --show        # what is configured (secret-free)
-.venv/bin/python hospital_setup.py --check       # prove the LLM + mailbox work
-.venv/bin/python hospital_setup.py --send-test you@yourclinic.com   # one real email
+cp .env.example .env
 ```
 
-Edit the three dataclass blocks at the top of the file:
+2. **Edit `.env` and configure your LLM** — this is the *only* place the LLM is
+   configured:
 
-```python
-LLM = LlmSettings(
-    provider   = "anthropic",     # anthropic / openai / azure / disabled
-    model      = "claude-sonnet-4-5",
-    api_key    = "",             # prefer exporting (see below) over pasting
-    base_url   = "",             # self-hosted gateways
-)
+```bash
+# In .env file
+# ============================================================
+# LLM Configuration (REQUIRED for intelligent decision-making)
+#   hospital_setup.py has no LLM block and emits no AGENT_LLM_* variable:
+#   every real model call in the project reads these from here.
+# ============================================================
+AGENT_LLM_PROVIDER=anthropic          # anthropic / openai / azure / disabled
+AGENT_LLM_MODEL=claude-sonnet-4-5    # your model name
+AGENT_LLM_API_KEY=sk-ant-xxxxx       # your API key
 
-EMAIL = EmailSettings(
-    enabled       = True,
-    address       = "reminders@yourclinic.com",   # the clinic's own maintained mailbox
-    display_name  = "Your Clinic",                # what patients see in their inbox
-    preset        = "microsoft365",               # fills host/port/encryption for you
-    smtp_password = "",                           # prefer exporting SMTP_PASSWORD
-)
+# For self-hosted or custom endpoints:
+# AGENT_LLM_BASE_URL=http://127.0.0.1:11434/v1   # e.g. a local Ollama server
 
-AGENT = AgentSettings(
-    escalation_email = "staff@yourclinic.com",
-    enable_live_sending     = False,   # both of these must be True AND
-    live_sends_acknowledged = False,   # MESSAGING_DRY_RUN=0 before anything is sent
-)
+# ============================================================
+# Email Configuration (for patient communication)
+# ============================================================
+SMTP_HOST=smtp.office365.com          # or smtp.gmail.com, etc.
+SMTP_PORT=587
+SMTP_USE_TLS=1
+SMTP_USERNAME=reminders@yourclinic.com
+SMTP_PASSWORD=your-app-password       # Use app password for Gmail
+EMAIL_FROM=reminders@yourclinic.com
+EMAIL_FROM_NAME=Your Clinic Name
+
+# ============================================================
+# Safety Switches (both required for live sending)
+# ============================================================
+MESSAGING_DRY_RUN=1                   # Keep at 1 until ready
+AGENT_LIVE_SENDS=0                    # Keep at 0 until ready
+```
+
+3. **Test your configuration:**
+
+```bash
+# Verify LLM connection (reads from .env)
+python hospital_setup.py --check
+
+# Send a test email to yourself
+python hospital_setup.py --send-test you@yourclinic.com
+```
+
+### Configuration Files
+
+| File | Purpose | When to use |
+|------|---------|-------------|
+| **`.env`** | **The only source of LLM configuration**, plus mailbox, policy and safety switches | Always — this is where all settings go |
+| `hospital_setup.py` | Mailbox/agent-policy blocks + verification and testing tool | Running `--check` / `--send-test`, or driving the mailbox config from a hospital's own onboarding service |
+
+You normally **never edit `hospital_setup.py`**: it emits only mailbox, agent and
+policy variables. Its `environment()` and `apply()` emit *no* `AGENT_LLM_*` key,
+so it cannot overwrite the LLM your `.env` declares — and it will not: the LLM
+has one home, `.env`.
+
+### Where the LLM configuration lives
+
+**`.env`, and only `.env`.** Every real model call in the project — the DECIDE
+step (`agent/decision.py`), the tool-use loop (`tools/llm_agent.py`), the patient
+chat (`agent/patient_chat.py`), drafted notifications
+(`agent/notifications.py`), the dashboard status probe (`web/app.py`) and the
+optional import assist (`utils/llm_parser.py`) — goes through the environment:
+
+| Setting | Read by |
+|---|---|
+| `AGENT_LLM_PROVIDER` / `_MODEL` / `_API_KEY` / `_BASE_URL` / `_API_VERSION` / `_TIMEOUT_SECONDS` / `_MAX_TOKENS` / `_ORGANIZATION` / `_EXTRA_HEADERS` / `_THINKING_DISABLED` | `tools.llm_providers.LlmProviderConfig.from_env()` |
+| `AGENT_DECISION_MODEL` (legacy alias) | same, as a fallback for `AGENT_LLM_MODEL` |
+
+Change the model, the vendor or the endpoint by editing `.env` and restarting —
+never by editing Python. `python hospital_setup.py --check` reads those *same*
+settings, so a passing check cannot disagree with what the agent will do at
+runtime.
+
+### Testing Commands
+
+```bash
+# Show current config (reads from .env, secrets hidden)
+python hospital_setup.py --show
+
+# Test LLM + SMTP connections
+python hospital_setup.py --check
+
+# Send one real test email
+python hospital_setup.py --send-test you@yourclinic.com
 ```
 
 ### Using it as a Python interface
@@ -228,42 +291,52 @@ is pure-ish and returns data rather than exiting:
 ```python
 import hospital_setup as hs
 
-hs.LLM.provider = "openai"                      # or "deepseek", "ollama", ...
-hs.LLM.base_url = "http://10.0.0.7:8000/v1"
-hs.LLM.model    = "Qwen/Qwen2.5-72B-Instruct"
 hs.EMAIL.enabled, hs.EMAIL.address = True, "reminders@yourclinic.com"
 hs.EMAIL.display_name, hs.EMAIL.preset = "Your Clinic", "microsoft365"
+hs.AGENT.max_reminders_before_escalation = 3
 
-# Secrets come from the environment (OPENAI_API_KEY, SMTP_PASSWORD), so they are
-# never written into a file that might be committed.
-problems = hs.validate()
-if problems:                       # e.g. a missing credential or password
+# The LLM is NOT set here: it comes from .env (AGENT_LLM_PROVIDER / _MODEL /
+# _BASE_URL / _API_KEY). hs.environment() emits no AGENT_LLM_* key at all, so
+# these two planes can never fight over the same variable.
+problems = hs.validate()                 # also reports a bad AGENT_LLM_PROVIDER
+if problems:                             # e.g. a missing credential or password
     raise SystemExit(problems)
-print(hs.apply(), "variables applied")           # -> the agent now uses these
+print(hs.apply(), "variables applied")           # -> the agent's mailbox/config now uses these
 ```
 
-Run with the secrets exported, this prints `problems: none` / `17 variables
-applied`. Leave them out and `validate()` names exactly what is missing instead of
-failing later at send time — which is the point of checking before applying.
+Run with the secrets exported, this applies the mailbox and policy settings;
+leave them out and `validate()` names exactly what is missing instead of failing
+later at send time — which is the point of checking before applying.
 
-That call is verified to actually reach the agent: the same run shows the agent's
-own config objects picking the values up:
+The same run reports where each plane's values came from — `apply()` writes
+eleven mailbox/policy variables and no LLM one, while `summary()` shows an LLM
+block that is *read* from the environment:
 
 ```
-apply() wrote   : 17 vars
-kind            : openai            (from provider=openai-compatible)
-base_url        : http://10.0.0.7:8000/v1
-model           : Qwen/Qwen2.5-72B-Instruct
-mail from       : reminders@hospital.example
-from name       : General Hospital
-smtp            : smtp.office365.com 587
+apply() wrote     : 11 vars          (mailbox + policy only; SMTP_PASSWORD stays
+                                      in the environment and is never emitted)
+
+"llm": {
+  "configured_in": ".env (AGENT_LLM_*)",
+  "provider":      "anthropic",      (normalised; aliases collapse to openai)
+  "model":         "claude-sonnet-4-5",
+  "endpoint":      "(vendor default)",  (from AGENT_LLM_BASE_URL when set)
+  "credential":    "set"
+}
+"email": { "from": "Your Clinic <reminders@yourclinic.com>",
+           "server": "smtp.office365.com:587", "encryption": "starttls" }
 ```
 
-Note the two names differ deliberately: the file calls it `provider`, while the
-agent's internal `LlmProviderConfig` calls the normalized result `kind` (which is
-always one of the four values above, never an alias).
+`hs.environment()` returns no `AGENT_LLM_*` key at all — asserted by
+`tests/test_hospital_setup.py` — which is what makes "configure the LLM in `.env`"
+true rather than merely recommended. A typo is still caught:
+`AGENT_LLM_PROVIDER=typo-nonsense` reports *"AGENT_LLM_PROVIDER 'typo-nonsense' is
+not recognised"* instead of quietly degrading to `anthropic`.
 
 ### 1. The hospital's own LLM
+
+Set these in **`.env`** — there is no Python equivalent, and `hospital_setup.py`
+neither defines nor emits them:
 
 `AGENT_LLM_PROVIDER` has **four behaviours**:
 
@@ -281,27 +354,29 @@ Many names are **aliases of `openai`**, not separate vendors:
 but **not** including `/chat/completions`. Matching is case-insensitive.
 
 ```bash
-# a self-hosted model inside the hospital network
-export AGENT_LLM_PROVIDER=openai
-export AGENT_LLM_BASE_URL=http://10.0.0.7:8000/v1
-export AGENT_LLM_API_KEY=not-needed-but-some-gateways-want-one
-export AGENT_LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
+# in .env -- a self-hosted model inside the hospital network
+AGENT_LLM_PROVIDER=openai
+AGENT_LLM_BASE_URL=http://10.0.0.7:8000/v1
+AGENT_LLM_API_KEY=not-needed-but-some-gateways-want-one
+AGENT_LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
 ```
 
 Verified alias collapse (a real run, not a claim):
 
 ```
-provider='ollama'         -> kind=openai
-provider='deepseek'       -> kind=openai
-provider='vllm'           -> kind=openai
-provider='OpenAI'         -> kind=openai
-provider='typo-nonsense'  -> kind=anthropic   # a typo degrades, never breaks
+AGENT_LLM_PROVIDER='ollama'         -> kind=openai
+AGENT_LLM_PROVIDER='deepseek'       -> kind=openai
+AGENT_LLM_PROVIDER='vllm'           -> kind=openai
+AGENT_LLM_PROVIDER='OpenAI'         -> kind=openai
+AGENT_LLM_PROVIDER='typo-nonsense'  -> kind=anthropic   # degrades, never breaks
+                                    # ...and `--check` reports the typo itself
 ```
 
 Two deliberate design choices make this safe for a clinic to own:
 
 - **A typo cannot take the agent offline.** An unrecognised name degrades to
-  `anthropic` rather than raising.
+  `anthropic` rather than raising — while `validate()` / `--check` still names the
+  misspelling so it does not go unnoticed.
 - **The LLM is never a single point of failure.** It may only choose among the
   actions the rule engine already permits, and *any* problem — bad key, timeout,
   out-of-bounds answer, `disabled` — silently falls back to the rules. Patient
@@ -330,7 +405,7 @@ a preset, so any provider works. Gmail and Google Workspace require a
 Prefer exporting the secret over pasting it into the file:
 
 ```bash
-export SMTP_PASSWORD='the app password'   # hospital_setup.py reads .env and the environment
+export SMTP_PASSWORD='the app password'   # hospital_setup.py and the agent read .env + the environment
 ```
 
 > ⚠️ **The SMTP channel has no recipient allow-list.** The two AWS tools
@@ -405,18 +480,21 @@ print(stats)
 
 ### Configuration
 
-There are two ways to configure the agent. **Use `.env`** unless you have a
-reason not to — it needs no code changes.
+#### How to configure the agent
 
-| Way | Best for | How |
+**Use `.env`** unless you have a reason not to — it needs no code changes.
+
+| File / way | Best for | How |
 |---|---|---|
-| **`.env` file** (recommended) | Normal use, and anything secret | `cp .env.example .env`, then edit it |
-| **`hospital_setup.py`** | A clinic onboarding system, or generating the config programmatically | Edit the `LLM` / `EMAIL` / `AGENT` blocks, then call `apply()` — see [Hospital Setup](#-hospital-setup) |
+| **`.env` file** (the LLM's only home) | Every LLM setting, every secret, plus mailbox/policy if you like | `cp .env.example .env`, then edit it — see [Quick Setup](#quick-setup-recommended) |
+| **`hospital_setup.py`** | A clinic onboarding system, or generating the *mailbox/policy* config programmatically | Edit the `EMAIL` / `AGENT` blocks, then call `apply()` — see [Hospital Setup](#-hospital-setup). It emits **no** `AGENT_LLM_*` key. |
 
-Both paths end up in the same place: `hospital_setup.py` writes environment
-variables that the agent reads, so the two are compatible and either can be used
-on its own. Every variable below is optional — the defaults are safe, and the
-agent stays in dry-run mode until you deliberately switch it off.
+Both paths end up in the same place — environment variables the agent reads — so
+the two are compatible and either can be used on its own. The single exception is
+the LLM: `hospital_setup.py` deliberately cannot set it, so `AGENT_LLM_PROVIDER`,
+`AGENT_LLM_MODEL`, `AGENT_LLM_API_KEY` and friends come from `.env` and nowhere
+else. Every variable below is optional — the defaults are safe, and the agent
+stays in dry-run mode until you deliberately switch it off.
 
 #### Where the configuration is read from
 
@@ -425,9 +503,9 @@ agent stays in dry-run mode until you deliberately switch it off.
 | `MESSAGING_ENV_FILE` | `.env` | Path to the file `load_env_file()` reads instead of `./.env`. Useful when a clinic keeps its secrets outside the repository. |
 
 Precedence: a variable **already exported in your shell wins** over the file,
-unless a caller passes `override=True` (which is what `hospital_setup.py apply()`
-does). So to override something that `apply()` wrote, set it *after* calling
-`apply()`.
+unless a caller passes `override=True`. `hospital_setup.py apply()` does pass it,
+but only for the mailbox/agent/policy keys it owns — never for `AGENT_LLM_*`, so
+your `.env` LLM settings survive it untouched.
 
 #### 1. Safety switches
 
@@ -465,6 +543,11 @@ The environment form above is the recommended one.
 
 #### 3. The hospital's own LLM
 
+Every one of these is read from **`.env`** (or the process environment) by
+`tools.llm_providers.LlmProviderConfig.from_env()`. `hospital_setup.py` defines no
+LLM block and emits no `AGENT_LLM_*` variable, so there is no second copy to keep
+in sync.
+
 | Variable | Default | Meaning |
 |---|---|---|
 | `AGENT_LLM_PROVIDER` | `anthropic` | `anthropic`, `openai`, `azure` or `disabled`. Vendor aliases such as `ollama`, `vllm`, `deepseek` all mean `openai` plus a base URL; an unrecognised value also means `anthropic`, so a typo can never take the agent offline. |
@@ -488,7 +571,7 @@ also what happens whenever no credential is present. The LLM is never required.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `SMTP_HOST` | — | e.g. `smtp.office365.com`. There is **no `SMTP_PRESET` environment variable**; presets live in `hospital_setup.py` (see below). |
+| `SMTP_HOST` | — | e.g. `smtp.office365.com`. There is **no `SMTP_PRESET` environment variable**; presets are an `EMAIL.preset` convenience of `hospital_setup.py` (see below). |
 | `SMTP_PORT` | `587` | |
 | `SMTP_USE_TLS` | `1` | STARTTLS. |
 | `SMTP_USE_SSL` | `0` | Implicit TLS (usually used with port 465). |
@@ -497,9 +580,10 @@ also what happens whenever no credential is present. The LLM is never required.
 | `EMAIL_FROM` | `SMTP_USERNAME` | The address patients see. Defaults to the username, which is correct for most providers. |
 | `EMAIL_FROM_NAME` | — | The friendly display name, e.g. `BrightSmile Dental Clinic`. |
 
-A *preset* is a convenience of `hospital_setup.py` only — set `EMAIL.preset` and
-it fills in the host/port/encryption when you call `apply()`. The available
-presets and the exact values they resolve to:
+A *preset* is a convenience of `hospital_setup.py` only — set `EMAIL.preset` (in
+Python, not in `.env`) and it fills in the host/port/encryption when you call
+`apply()`. It affects only the mailbox: the LLM comes from `.env` either way. The
+available presets and the exact values they resolve to:
 
 | `EMAIL.preset` | Host | Port | Encryption |
 |---|---|---|---|
@@ -701,6 +785,10 @@ would have sent. See `is_configured_for_live_sends()` in `agent/delivery.py`.
 
 ```bash
 pip install anthropic
+# prefer .env over export -- it is the LLM's only home:
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   AGENT_LLM_PROVIDER=anthropic
+#   AGENT_LLM_MODEL=claude-sonnet-4-5
 export ANTHROPIC_API_KEY=sk-ant-...
 export AGENT_DECISION_MODEL=claude-sonnet-4-5   # optional
 ```

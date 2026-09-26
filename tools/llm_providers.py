@@ -75,6 +75,26 @@ _OPENAI_ALIASES = {
 #: Names that mean "no model -- run the deterministic rule engine only".
 _DISABLED_ALIASES = {"disabled", "none", "off", "rules", "rules_only", "rule"}
 
+
+def known_provider_names() -> frozenset:
+    """
+    Every spelling ``AGENT_LLM_PROVIDER`` is documented to accept.
+
+    ``_normalize_kind`` never rejects input -- an unrecognised name degrades to
+    Anthropic so a typo cannot take the agent down -- which means a misspelled
+    provider is otherwise invisible. The clinic-facing validator uses this set
+    to report the typo instead, without duplicating the alias lists above.
+
+    Returns:
+        A frozenset of lower-case accepted names.
+    """
+    return frozenset(
+        {PROVIDER_ANTHROPIC, PROVIDER_OPENAI, PROVIDER_AZURE, PROVIDER_DISABLED}
+        | _OPENAI_ALIASES
+        | _DISABLED_ALIASES
+    )
+
+
 #: OpenAI ``finish_reason`` -> Anthropic ``stop_reason``.
 _STOP_REASONS = {
     "tool_calls": "tool_use",

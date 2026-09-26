@@ -287,7 +287,7 @@ class ToolUseAgent:
             if client is None:
                 raise MissingAnthropicError(
                     "No LLM is configured (AGENT_LLM_PROVIDER=disabled). Set a "
-                    "provider in hospital_setup.py or pass a client explicitly."
+                    "provider in .env or pass a client explicitly."
                 )
             self.client = client
         return self.client

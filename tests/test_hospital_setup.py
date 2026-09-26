@@ -7,6 +7,10 @@ patients. The tests therefore concentrate on ``environment()`` / ``validate()``
 and on the live-sending gate, which is the safety property -- an accident there
 would contact real patients directly.
 
+The split of responsibilities is asserted too. The LLM is configured in the
+project's ``.env``, so ``environment()`` must emit no ``AGENT_LLM_*`` key at
+all: if it did, ``apply()`` would silently outvote the deployment's own file.
+
 The settings are module-level globals (that is the whole point of the file), so
 each test substitutes them and lets monkeypatch restore them.
 """
@@ -20,10 +24,19 @@ import hospital_setup as hs
 from hospital_setup import (
     AgentSettings,
     EmailSettings,
-    LlmSettings,
     SMTP_PRESETS,
     environment,
     validate,
+)
+
+#: Every variable the LLM layer accepts a credential from, best first. A test
+#: that asserts "no credential" must clear all of them: a developer's own
+#: exported key would otherwise make the assertion depend on their machine.
+_CREDENTIAL_VARIABLES = (
+    "AGENT_LLM_API_KEY",
+    "LLM_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
 )
 
 
@@ -42,12 +55,12 @@ def isolated_environment(monkeypatch):
 
 @pytest.fixture
 def configured(monkeypatch):
-    """Replace the three settings blocks with a coherent live configuration."""
-    monkeypatch.setattr(
-        hs,
-        "LLM",
-        LlmSettings(provider="openai", model="gpt-4o-mini", api_key="sk-test"),
-    )
+    """Replace the settings blocks with a coherent live configuration."""
+    # The LLM half is the environment's, exactly as it is in production: the
+    # provider layer reads .env and nothing in this file restates it.
+    monkeypatch.setenv("AGENT_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("AGENT_LLM_MODEL", "gpt-4o-mini")
+    monkeypatch.setenv("AGENT_LLM_API_KEY", "sk-test")
     monkeypatch.setattr(
         hs,
         "EMAIL",
@@ -82,13 +95,7 @@ class TestShippedDefaults:
         # As shipped, nothing is configured -- and crucially, nothing sends.
         # The repo's own .env is cleared first: this asserts the *file's*
         # defaults, not whatever the developer happens to have exported.
-        for name in (
-            "AGENT_LLM_API_KEY",
-            "LLM_API_KEY",
-            "ANTHROPIC_API_KEY",
-            "OPENAI_API_KEY",
-            "SMTP_PASSWORD",
-        ):
+        for name in (*_CREDENTIAL_VARIABLES, "SMTP_PASSWORD"):
             monkeypatch.delenv(name, raising=False)
         problems = validate()
         assert any("No LLM credential" in p for p in problems)
@@ -217,28 +224,46 @@ class TestValidate:
         monkeypatch.delenv("SMTP_PASSWORD", raising=False)
         assert any("smtp_password is required" in p for p in validate())
 
-    def test_the_openai_family_requires_a_model(self, monkeypatch):
-        monkeypatch.setattr(
-            hs, "LLM", LlmSettings(provider="openai", model="", api_key="k")
-        )
-        assert any("model is required" in p for p in validate())
+    def test_an_azure_deployment_name_is_required(self, monkeypatch):
+        monkeypatch.setenv("AGENT_LLM_PROVIDER", "azure")
+        monkeypatch.setenv("AGENT_LLM_API_KEY", "k")
+        monkeypatch.setenv("AGENT_LLM_BASE_URL", "https://r.openai.azure.com")
+        monkeypatch.delenv("AGENT_LLM_MODEL", raising=False)
+        assert any("AGENT_LLM_MODEL is required" in p for p in validate())
 
     def test_azure_requires_its_endpoint(self, monkeypatch):
-        monkeypatch.setattr(
-            hs,
-            "LLM",
-            LlmSettings(provider="azure", model="deploy", api_key="k"),
-        )
-        assert any("base_url is required" in p for p in validate())
+        monkeypatch.setenv("AGENT_LLM_PROVIDER", "azure")
+        monkeypatch.setenv("AGENT_LLM_MODEL", "my-deployment")
+        monkeypatch.setenv("AGENT_LLM_API_KEY", "k")
+        monkeypatch.delenv("AGENT_LLM_BASE_URL", raising=False)
+        assert any("AGENT_LLM_BASE_URL is required" in p for p in validate())
 
     def test_an_unrecognised_provider_is_reported(self, monkeypatch):
-        monkeypatch.setattr(
-            hs, "LLM", LlmSettings(provider="mystery", model="m", api_key="k")
-        )
+        # The provider layer degrades an unknown name to anthropic so a typo
+        # cannot take the agent offline -- which is precisely why this check has
+        # to look at the name itself.
+        monkeypatch.setenv("AGENT_LLM_PROVIDER", "mystery")
+        monkeypatch.setenv("AGENT_LLM_API_KEY", "k")
         assert any("not recognised" in p for p in validate())
 
+    def test_a_documented_alias_is_not_reported_as_a_typo(self, monkeypatch):
+        monkeypatch.setenv("AGENT_LLM_PROVIDER", "ollama")
+        monkeypatch.setenv("AGENT_LLM_API_KEY", "k")
+        assert not any("not recognised" in p for p in validate())
+
     def test_disabled_provider_needs_no_credential(self, monkeypatch):
-        monkeypatch.setattr(hs, "LLM", LlmSettings(provider="disabled"))
+        monkeypatch.setenv("AGENT_LLM_PROVIDER", "disabled")
+        for name in _CREDENTIAL_VARIABLES:
+            monkeypatch.delenv(name, raising=False)
+        assert not any("credential" in p for p in validate())
+
+    def test_the_llm_credential_is_read_from_the_environment(self, monkeypatch):
+        # BLOCK 1's contract: .env is the only LLM source, so validate() must
+        # report what the environment says rather than a copy kept in the file.
+        for name in _CREDENTIAL_VARIABLES:
+            monkeypatch.delenv(name, raising=False)
+        assert any("No LLM credential" in p for p in validate())
+        monkeypatch.setenv("AGENT_LLM_API_KEY", "sk-from-env")
         assert not any("credential" in p for p in validate())
 
 
@@ -248,15 +273,17 @@ class TestValidate:
 
 
 class TestEnvironment:
-    def test_the_llm_block_becomes_the_agent_variables(self, configured):
-        env = environment()
-        assert env["AGENT_LLM_PROVIDER"] == "openai"
-        assert env["AGENT_LLM_MODEL"] == "gpt-4o-mini"
-        assert env["AGENT_LLM_API_KEY"] == "sk-test"
+    def test_no_llm_variable_is_ever_emitted(self, configured):
+        """
+        BLOCK 1's contract, and the reason the LLM block was removed.
 
-    def test_the_model_reaches_the_legacy_decision_knob_too(self, configured):
-        # Both layers read a model id; leaving one unset would let them drift.
-        assert environment()["AGENT_DECISION_MODEL"] == "gpt-4o-mini"
+        The model is configured in ``.env``. If this file emitted ``AGENT_LLM_*``
+        too, ``apply()`` would write a second, staler copy over it -- so the
+        absence of these keys is a behaviour, not an omission.
+        """
+        emitted = environment()
+        assert [key for key in emitted if key.startswith("AGENT_LLM_")] == []
+        assert "AGENT_DECISION_MODEL" not in emitted
 
     def test_a_preset_resolves_to_concrete_coordinates(self, configured):
         env = environment()
@@ -321,19 +348,6 @@ class TestEnvironment:
         # An empty string would overwrite a variable set elsewhere.
         assert "" not in environment().values()
 
-    def test_extra_headers_are_emitted_as_json(self, monkeypatch):
-        monkeypatch.setattr(
-            hs,
-            "LLM",
-            LlmSettings(
-                provider="openai",
-                model="m",
-                api_key="k",
-                extra_headers={"X-Gateway": "g"},
-            ),
-        )
-        assert '"X-Gateway"' in environment()["AGENT_LLM_EXTRA_HEADERS"]
-
 
 # ---------------------------------------------------------------------------
 # environment() must feed the code that reads it
@@ -341,15 +355,19 @@ class TestEnvironment:
 
 
 class TestEnvironmentIsActuallyConsumed:
-    def test_the_emitted_llm_variables_configure_the_provider_layer(
+    def test_the_env_llm_variables_configure_the_provider_layer(
         self, configured
     ):
+        # The .env route, which is the only route: the provider layer reads the
+        # environment, so no hospital_setup block has to be involved.
         from tools.llm_providers import LlmProviderConfig
 
-        config = LlmProviderConfig.from_env(environment())
-        assert config.kind == "openai"
-        assert config.model == "gpt-4o-mini"
-        assert config.api_key == "sk-test"
+        config = LlmProviderConfig.from_env()
+        assert (config.kind, config.model, config.api_key) == (
+            "openai",
+            "gpt-4o-mini",
+            "sk-test",
+        )
 
     def test_the_emitted_mailbox_variables_configure_the_messaging_layer(
         self, configured
@@ -407,25 +425,34 @@ class TestApply:
         assert applied == len(environment())
         import os
 
-        assert os.environ["AGENT_LLM_PROVIDER"] == "openai"
+        assert os.environ["SMTP_HOST"] == "smtp.office365.com"
 
     def test_existing_variables_win_when_overriding_is_off(
         self, configured, monkeypatch
     ):
         # This is the vault-injection path: a real secret must not be replaced
         # by a blank in the file.
-        monkeypatch.setenv("AGENT_LLM_API_KEY", "from-the-vault")
+        monkeypatch.setenv("SMTP_PASSWORD", "from-the-vault")
         hs.apply(override=False)
         import os
 
-        assert os.environ["AGENT_LLM_API_KEY"] == "from-the-vault"
+        assert os.environ["SMTP_PASSWORD"] == "from-the-vault"
 
     def test_overriding_replaces_an_existing_variable(self, configured, monkeypatch):
-        monkeypatch.setenv("AGENT_LLM_API_KEY", "stale")
+        monkeypatch.setenv("SMTP_PASSWORD", "stale")
         hs.apply(override=True)
         import os
 
-        assert os.environ["AGENT_LLM_API_KEY"] == "sk-test"
+        assert os.environ["SMTP_PASSWORD"] == "app-password"
+
+    def test_it_never_overwrites_the_env_llm_settings(self, configured, monkeypatch):
+        # BLOCK 1's contract again, from the other side: apply() must not be
+        # able to outvote the deployment's .env.
+        monkeypatch.setenv("AGENT_LLM_MODEL", "the-deployment-chose-this")
+        hs.apply(override=True)
+        import os
+
+        assert os.environ["AGENT_LLM_MODEL"] == "the-deployment-chose-this"
 
 
 # ---------------------------------------------------------------------------
@@ -489,6 +516,13 @@ class TestSummary:
         assert hs.summary()["llm"]["credential"] == "set"
         assert hs.summary()["email"]["credential"] == "set"
 
+    def test_it_says_where_the_llm_configuration_came_from(self, configured):
+        # A support ticket must not leave anyone hunting in hospital_setup.py.
+        llm = hs.summary()["llm"]
+        assert llm["configured_in"] == ".env (AGENT_LLM_*)"
+        assert llm["provider"] == "openai"
+        assert llm["model"] == "gpt-4o-mini"
+
     def test_it_reports_the_live_sending_state(self, configured):
         assert hs.summary()["agent"]["live_sending"] is True
 
@@ -536,8 +570,7 @@ class TestChecksNeverRaise:
         # check_llm() reads .env itself, so the repository's own file must be
         # neutralised: otherwise this asserts the developer's credentials
         # rather than the diagnosis path under test.
-        for name in ("AGENT_LLM_API_KEY", "LLM_API_KEY", "ANTHROPIC_API_KEY",
-                     "OPENAI_API_KEY"):
+        for name in _CREDENTIAL_VARIABLES:
             monkeypatch.delenv(name, raising=False)
         monkeypatch.setattr(hs, "load_dotenv", lambda: None)
         ok, message = hs.check_llm()
@@ -545,7 +578,7 @@ class TestChecksNeverRaise:
         assert "credential" in message.lower()
 
     def test_check_llm_treats_a_disabled_provider_as_success(self, monkeypatch):
-        monkeypatch.setattr(hs, "LLM", LlmSettings(provider="disabled"))
+        monkeypatch.setenv("AGENT_LLM_PROVIDER", "disabled")
         ok, message = hs.check_llm()
         assert ok is True
         assert "rule engine" in message
@@ -702,13 +735,17 @@ class TestTheInterfaceIsImportable:
             "(recipient: 'str')"
         )
 
-    def test_environment_renders_without_touching_os_environ(self, monkeypatch):
-        monkeypatch.setenv("AGENT_LLM_PROVIDER", "sentinel-should-not-be-read")
+    def test_environment_renders_without_touching_os_environ(
+        self, configured, monkeypatch
+    ):
+        monkeypatch.setenv("SMTP_HOST", "sentinel-should-not-be-read")
         before = dict(os.environ)
         rendered = hs.environment()
         assert dict(os.environ) == before
         assert isinstance(rendered, dict)
-        assert rendered["AGENT_LLM_PROVIDER"]  # rendered from the settings
+        # Rendered from the settings, not from whatever the process happens to
+        # have exported.
+        assert rendered["SMTP_HOST"] == "smtp.office365.com"
 
     def test_the_documented_alias_collapse_holds(self):
         # README claims these all mean "openai", and that a typo means anthropic.
@@ -732,13 +769,13 @@ class TestTheInterfaceIsImportable:
 
     def test_applying_a_config_reaches_the_agents_own_config_objects(self, monkeypatch):
         # The README's headline claim: apply() is what the agent actually reads.
+        # The LLM half is set the way a deployment does it -- in the environment.
         from tools.config import MessagingConfig
         from tools.llm_providers import LlmProviderConfig
 
-        monkeypatch.setattr(hs, "LLM", LlmSettings(
-            provider="openai", base_url="http://10.0.0.7:8000/v1",
-            model="Qwen/Qwen2.5-72B-Instruct",
-        ))
+        monkeypatch.setenv("AGENT_LLM_PROVIDER", "openai")
+        monkeypatch.setenv("AGENT_LLM_BASE_URL", "http://10.0.0.7:8000/v1")
+        monkeypatch.setenv("AGENT_LLM_MODEL", "Qwen/Qwen2.5-72B-Instruct")
         monkeypatch.setattr(hs, "EMAIL", EmailSettings(
             enabled=True, address="reminders@hospital.example",
             display_name="General Hospital", preset="microsoft365",

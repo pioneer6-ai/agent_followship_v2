@@ -12,23 +12,30 @@ cd agent_followship_v2
 pip install -r requirements.txt
 ```
 
-**Setting this up for a real clinic?** Start with `hospital_setup.py` (repository
-root) — it is the one interface file a hospital edits to point the agent at its
-own LLM and its own already-maintained domain mailbox. Everything below runs
-offline with sample data and needs no credentials.
+**Setting this up for a real clinic?** Two files, two jobs. `hospital_setup.py`
+(repository root) is the interface a hospital edits to point the agent at its own
+already-maintained **domain mailbox**, and to verify the result. Its **LLM** half
+does not exist: the model is configured in **`.env`**, and only there. Everything
+below runs offline with sample data and needs no credentials.
 
 ```bash
 .venv/bin/python hospital_setup.py --show    # what is configured (secret-free)
-.venv/bin/python hospital_setup.py --check   # prove the LLM + mailbox actually work
+.venv/bin/python hospital_setup.py --check   # prove the .env LLM + mailbox actually work
 ```
 
-Edit the `LLM` / `EMAIL` / `AGENT` blocks at the top of the file, or set the
-corresponding environment variables (see `.env.example`). The three settings most
-clinics change are `LLM.provider` (one of `anthropic` / `openai` / `azure` /
-`disabled` — self-hosted models such as Ollama use `openai` plus a `base_url`),
-`EMAIL.address` (their own mailbox) and `EMAIL.display_name`. The file is also
-importable, so a hospital's own portal can drive it. Full details, including the
-function reference: README → **Hospital Setup**.
+- **LLM** → edit `.env` (`AGENT_LLM_PROVIDER`, `AGENT_LLM_MODEL`,
+  `AGENT_LLM_API_KEY`, `AGENT_LLM_BASE_URL`; see `.env.example`). This is the only
+  place any LLM setting is written — `hospital_setup.py` emits no `AGENT_LLM_*`
+  variable and cannot override it.
+- **Mailbox** → edit the `EMAIL` / `AGENT` blocks in `hospital_setup.py`, or set
+  the corresponding environment variables.
+
+The settings most clinics change are `AGENT_LLM_PROVIDER` in `.env` (one of
+`anthropic` / `openai` / `azure` / `disabled` — self-hosted models such as Ollama
+use `openai` plus a base URL), `EMAIL.address` (their own mailbox) and
+`EMAIL.display_name`. The setup file is also importable, so a hospital's own
+portal can drive it. Full details, including the function reference: README →
+**Hospital Setup**.
 
 ## Option 1: Interactive Demo (Recommended for First Time)
 

@@ -1,24 +1,34 @@
 #!/usr/bin/env python
 """
 ==============================================================================
- CLINIC INTEGRATION FILE -- this is the only file your hospital needs to edit.
+ CLINIC INTEGRATION FILE -- the mailbox and policy half of your setup.
 ==============================================================================
 
-This file is the single place where you tell the patient follow-up agent:
+Two of the three things the patient follow-up agent needs are set here:
 
-  1. WHICH LLM to use            -> the ``LLM`` block below
-  2. WHICH mailbox sends email   -> the ``EMAIL`` block below
+  1. WHICH mailbox sends email   -> the ``EMAIL`` block below
+  2. WHO gets escalation alerts,
+     and whether the agent may
+     send for real                -> the ``AGENT`` block below
+
+The third -- WHICH LLM it thinks with -- is **not** set here. It lives in the
+project's ``.env`` file, so the model, its endpoint and its credential have
+exactly one home and no second copy to keep in step. Every real LLM call the
+agent makes goes through ``tools/llm_providers.py``, which reads only the
+``AGENT_LLM_*`` variables documented in ``.env.example``; this file never
+writes or overrides them. (Set ``AGENT_LLM_PROVIDER=disabled`` there to run the
+deterministic rule engine with no model call at all.)
 
 Everything else in the project already works. Nothing here needs a programmer;
-edit the three blocks, then run one command to verify.
+edit the two blocks, then run one command to verify both halves.
 
 ------------------------------------------------------------------------------
  STEP 1 -- Fill in the blocks
 ------------------------------------------------------------------------------
 
-    LLM    : your model provider (or switch it off to run rules-only).
     EMAIL  : your existing, already-maintained domain mailbox.
     AGENT  : who gets escalation alerts, and whether the agent may send for real.
+    .env   : AGENT_LLM_PROVIDER / AGENT_LLM_MODEL / AGENT_LLM_API_KEY (the LLM).
 
 ------------------------------------------------------------------------------
  STEP 2 -- Check it (sends nothing)
@@ -26,8 +36,9 @@ edit the three blocks, then run one command to verify.
 
     python hospital_setup.py --check
 
-This reports whether the model answers and whether the mailbox accepts your
-credentials, WITHOUT sending anything to a patient.
+This reports whether the model answers -- using the ``.env`` settings -- and
+whether the mailbox accepts your credentials, WITHOUT sending anything to a
+patient.
 
 ------------------------------------------------------------------------------
  STEP 3 -- Send one real test email to your own inbox
@@ -74,7 +85,7 @@ change that.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 import os
 import sys
@@ -84,84 +95,51 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 # =============================================================================
-# BLOCK 1 -- YOUR LLM
+# BLOCK 1 -- YOUR LLM  (configured in .env, deliberately not here)
 # =============================================================================
-
-
-@dataclass
-class LlmSettings:
-    """
-    Which language model decides what the agent should do next.
-
-    The model never composes or transmits a message itself. It only chooses the
-    next action from a set the clinic's own rules permit, which is why pointing
-    this at any competent model is safe.
-
-    Attributes:
-        provider: ``"anthropic"`` (Claude), ``"openai"`` (any
-            OpenAI-compatible endpoint), ``"azure"`` (Azure OpenAI), or
-            ``"disabled"`` to run on the deterministic rule engine alone.
-        model: Model id. Examples: ``claude-sonnet-4-5``, ``gpt-4o-mini``,
-            ``llama3.1:8b`` (Ollama), ``Qwen/Qwen2.5-72B-Instruct`` (vLLM),
-            or your Azure *deployment name*.
-        api_key: Credential. Prefer leaving this blank and exporting it in the
-            environment instead, so it never reaches version control.
-        base_url: Endpoint root, for self-hosted or gateway deployments.
-            Blank uses the vendor default. Examples:
-            ``http://localhost:11434/v1`` (Ollama),
-            ``https://your-gateway.internal/v1``,
-            ``https://your-resource.openai.azure.com``.
-        api_version: Azure only, e.g. ``2024-10-21``.
-        timeout_seconds: Give slow local models room; 60s is a safe default.
-        max_tokens: Cap on the model's reply length.
-        organization: Optional OpenAI organization/project id.
-        extra_headers: Optional extra HTTP headers, for a gateway that needs
-            a routing or tenant key.
-    """
-
-    provider: str = "anthropic"
-    model: str = "claude-sonnet-4-5"
-    api_key: str = ""
-    base_url: str = ""
-    api_version: str = ""
-    timeout_seconds: float = 60.0
-    max_tokens: int = 1024
-    organization: str = ""
-    extra_headers: Dict[str, str] = field(default_factory=dict)
-
-    # -- Ready-made settings for common deployments. Uncomment ONE and adjust.
-    #
-    # Claude (default):
-    #   provider="anthropic", model="claude-sonnet-4-5"
-    #
-    # OpenAI:
-    #   provider="openai", model="gpt-4o-mini"
-    #
-    # Azure OpenAI (model = your DEPLOYMENT name, not the model family):
-    #   provider="azure", model="my-gpt4o-deployment",
-    #   base_url="https://your-resource.openai.azure.com",
-    #   api_version="2024-10-21"
-    #
-    # Local / self-hosted, no data leaves the building:
-    #   provider="openai", model="llama3.1:8b",
-    #   base_url="http://localhost:11434/v1"
-    #
-    # An in-house gateway that speaks the OpenAI API:
-    #   provider="openai", model="your-model",
-    #   base_url="https://llm.yourhospital.internal/v1"
-    #
-    # DeepSeek (Anthropic-compatible endpoint). Leave api_key empty and export
-    # AGENT_LLM_API_KEY instead, so no credential is ever committed here.
-    # AGENT_LLM_THINKING_DISABLED=1 is required: DeepSeek reasons by default,
-    # and reasoning mode rejects the forced tool call the decision step makes.
-    #   provider="anthropic", model="deepseek-flash",
-    #   base_url="https://api.deepseek.com/anthropic"
-    #
-    # Rules only -- no model, no outbound call, fully deterministic:
-    #   provider="disabled"
-
-
-LLM = LlmSettings()
+#
+# There is no LLM block in this file any more. The model the agent thinks with
+# is configured in the project's .env, so the endpoint and its credential have a
+# single home and this file cannot silently override a deployment's settings.
+#
+# Every real model call is made by tools/llm_providers.py, which reads exactly
+# these variables (see .env.example for a ready-to-copy block):
+#
+#   AGENT_LLM_PROVIDER          anthropic (default) | openai | azure | disabled
+#                               ollama, vllm, deepseek, groq ... are accepted
+#                               too and mean "an OpenAI-compatible endpoint".
+#   AGENT_LLM_MODEL             e.g. claude-sonnet-4-5, gpt-4o-mini,
+#                               llama3.1:8b (Ollama), Qwen/Qwen2.5-72B-Instruct
+#                               (vLLM), or an Azure *deployment* name.
+#   AGENT_LLM_API_KEY           the credential -- prefer the environment so it
+#                               never reaches version control.
+#   AGENT_LLM_BASE_URL          endpoint root for a gateway or a self-hosted
+#                               server, e.g. http://localhost:11434/v1 (Ollama),
+#                               https://your-resource.openai.azure.com.
+#                               Blank means the vendor default.
+#   AGENT_LLM_API_VERSION       Azure only, e.g. 2024-10-21.
+#   AGENT_LLM_TIMEOUT_SECONDS   give slow local models room; 60 is the default.
+#   AGENT_LLM_MAX_TOKENS        cap on the model's reply length (default 1024).
+#   AGENT_LLM_ORGANIZATION      optional OpenAI organization/project id.
+#   AGENT_LLM_EXTRA_HEADERS     optional JSON object, for a gateway that needs
+#                               a routing or tenant key.
+#   AGENT_LLM_THINKING_DISABLED set to 1 for an Anthropic-compatible endpoint
+#                               that reasons by default (DeepSeek does); that
+#                               mode rejects the forced tool call the decision
+#                               step depends on.
+#
+# ANTHROPIC_API_KEY / OPENAI_API_KEY / LLM_API_KEY are accepted as credential
+# fallbacks, so a clinic that already exports one does not have to rename it.
+#
+# The model never composes or transmits a message itself: it only chooses the
+# next action from the set the clinic's own rules permit, and any error (bad
+# key, timeout, out-of-bounds answer) falls back to those rules. Pointing it at
+# any competent model is therefore safe, and it is never a single point of
+# failure.
+#
+# ``environment()``/``apply()`` below deliberately emit no AGENT_LLM_* key, and
+# ``validate()`` reads the .env values rather than restating them. Run
+# ``python hospital_setup.py --check`` to prove the configured endpoint answers.
 
 
 # =============================================================================
@@ -323,6 +301,10 @@ def environment() -> Dict[str, str]:
     """
     Render these settings as the environment variables the agent reads.
 
+    Only the mailbox and agent-policy variables are emitted. The LLM settings
+    are *not* emitted, on purpose: they are owned by ``.env`` (see BLOCK 1), so
+    applying this file can never quietly override the model a deployment chose.
+
     Keeping this a pure, public function means the configuration can be
     inspected and unit-tested without touching the real environment.
 
@@ -332,28 +314,6 @@ def environment() -> Dict[str, str]:
     """
     smtp = _resolved_smtp(EMAIL)
     values: Dict[str, str] = {}
-
-    # --- LLM -----------------------------------------------------------------
-    values["AGENT_LLM_PROVIDER"] = (LLM.provider or "anthropic").strip().lower()
-    if LLM.model:
-        values["AGENT_LLM_MODEL"] = LLM.model.strip()
-    if LLM.api_key:
-        values["AGENT_LLM_API_KEY"] = LLM.api_key.strip()
-    if LLM.base_url:
-        values["AGENT_LLM_BASE_URL"] = LLM.base_url.strip()
-    if LLM.api_version:
-        values["AGENT_LLM_API_VERSION"] = LLM.api_version.strip()
-    if LLM.organization:
-        values["AGENT_LLM_ORGANIZATION"] = LLM.organization.strip()
-    if LLM.extra_headers:
-        import json
-
-        values["AGENT_LLM_EXTRA_HEADERS"] = json.dumps(LLM.extra_headers)
-    values["AGENT_LLM_TIMEOUT_SECONDS"] = str(float(LLM.timeout_seconds))
-    values["AGENT_LLM_MAX_TOKENS"] = str(int(LLM.max_tokens))
-    # The decision engine's legacy knob, kept in step so both agree.
-    if LLM.model:
-        values["AGENT_DECISION_MODEL"] = LLM.model.strip()
 
     # --- Email ---------------------------------------------------------------
     if EMAIL.enabled:
@@ -390,12 +350,14 @@ def apply(*, override: bool = True) -> int:
     """
     Load these settings into the process environment.
 
-    Call this before constructing the agent, or set ``CLINIC_SETUP_FILE`` so the
-    agent finds it automatically. Existing variables win when ``override`` is
-    False, which lets a deployment inject secrets from a vault instead.
+    Nothing calls this automatically -- an embedder (or a test) opts in -- so it
+    is the convenient way to make the mailbox and agent-policy blocks visible to
+    the agent's own config objects. The LLM variables are untouched: those come
+    from ``.env`` and are read directly by ``tools/llm_providers.py``.
 
     Args:
         override: Whether to replace variables already set in the environment.
+            ``False`` lets a deployment inject secrets from a vault instead.
 
     Returns:
         Number of variables applied.
@@ -408,36 +370,70 @@ def apply(*, override: bool = True) -> int:
     return applied
 
 
+def _llm_settings() -> Optional[Any]:
+    """
+    Read the LLM configuration the agent itself will use.
+
+    This is the whole point of the split: the LLM is configured in ``.env``, so
+    the clinic-facing checks must *read* that configuration rather than restate
+    it in this file. ``load_dotenv`` is the caller's job -- the entry points do
+    it -- because ``validate()`` must be able to report on an environment a test
+    has prepared.
+
+    Returns:
+        The resolved ``tools.llm_providers.LlmProviderConfig``, or ``None`` when
+        the project's own ``tools/llm_providers.py`` cannot be imported (a
+        broken checkout).
+    """
+    try:
+        from tools.llm_providers import LlmProviderConfig
+    except ImportError:  # pragma: no cover - tools/ is always importable
+        return None
+    return LlmProviderConfig.from_env()
+
+
 def validate() -> List[str]:
     """
     Check the settings for the mistakes that actually happen.
+
+    The LLM half of this reads the ``.env`` configuration (see BLOCK 1), so a
+    model name, endpoint or credential that the agent would really use is what
+    gets checked -- there is no second copy to fall out of step.
 
     Returns:
         Human-readable problems. Empty means the configuration is coherent.
     """
     problems: List[str] = []
 
-    provider = (LLM.provider or "").strip().lower()
-    known = {"anthropic", "openai", "azure", "disabled", "none", "off"}
-    if provider not in known and provider not in {
-        "openai_compatible", "openai-compatible", "custom", "ollama", "vllm"
-    }:
+    llm = _llm_settings()
+    if llm is None:
         problems.append(
-            f"LLM.provider {LLM.provider!r} is not recognised; use anthropic, "
-            "openai, azure or disabled."
+            "Could not read the LLM configuration: tools/llm_providers.py is not "
+            "importable. Run this from the project directory."
         )
-    if provider in {"openai", "azure"} and not LLM.model:
-        problems.append("LLM.model is required for an OpenAI-compatible provider.")
-    if provider == "azure" and not LLM.base_url:
-        problems.append("LLM.base_url is required for Azure (your resource endpoint).")
-    if provider not in {"disabled", "none", "off"} and not (
-        LLM.api_key or _env_llm_key(provider)
-    ):
-        problems.append(
-            "No LLM credential found. Set LLM.api_key here, or export "
-            f"{'ANTHROPIC_API_KEY' if provider == 'anthropic' else 'OPENAI_API_KEY'}"
-            " or AGENT_LLM_API_KEY in the environment."
-        )
+    else:
+        # _normalize_kind deliberately maps an unknown name onto anthropic so a
+        # typo cannot take the agent offline -- which also means the typo would
+        # otherwise go unreported, hence this explicit check.
+        declared = (os.environ.get("AGENT_LLM_PROVIDER") or "").strip().lower()
+        if declared and declared not in _known_provider_names():
+            problems.append(
+                f"AGENT_LLM_PROVIDER {declared!r} is not recognised; use anthropic, "
+                "openai, azure or disabled (ollama, vllm, deepseek and similar "
+                "mean an OpenAI-compatible endpoint)."
+            )
+        if llm.kind == "azure":
+            if not llm.model:
+                problems.append(
+                    "AGENT_LLM_MODEL is required for Azure: your deployment name."
+                )
+            if not llm.base_url:
+                problems.append(
+                    "AGENT_LLM_BASE_URL is required for Azure (your resource endpoint)."
+                )
+        missing = _missing_llm_credential()
+        if missing:
+            problems.append(missing)
 
     if EMAIL.enabled:
         smtp = _resolved_smtp(EMAIL)
@@ -486,6 +482,10 @@ def load_dotenv() -> None:
     """
     Load the project's ``.env`` into the environment, if there is one.
 
+    This is the file that configures the LLM (BLOCK 1), so every entry point
+    loads it first: ``--check`` then validates and calls the same provider
+    settings the agent would use at runtime, not a copy of them.
+
     The blocks below are for values a clinic is happy to keep in the file. The
     guide tells them to prefer exporting secrets instead, so the checks must
     actually read an exported ``SMTP_PASSWORD`` -- otherwise the recommended,
@@ -501,6 +501,20 @@ def load_dotenv() -> None:
     load_env_file()
 
 
+def _known_provider_names() -> frozenset:
+    """
+    The ``AGENT_LLM_PROVIDER`` spellings the LLM layer accepts.
+
+    Delegated to ``tools/llm_providers.known_provider_names`` so the accepted
+    names live with the code that interprets them and cannot drift.
+    """
+    try:
+        from tools.llm_providers import known_provider_names
+    except ImportError:  # pragma: no cover - guarded by _llm_settings()
+        return frozenset()
+    return known_provider_names()
+
+
 def _missing_llm_credential() -> Optional[str]:
     """
     Describe the missing credential, or ``None`` when there is nothing missing.
@@ -508,29 +522,30 @@ def _missing_llm_credential() -> Optional[str]:
     Checked *before* the live model call so the common misconfiguration -- no
     key at all -- is reported as itself. Otherwise a missing SDK or an
     unauthenticated endpoint is what surfaces, and "install the anthropic
-    package" is the wrong advice for someone who simply has not pasted a key.
+    package" is the wrong advice for someone who simply has not pasted a key
+    into ``.env``.
     """
-    provider = (LLM.provider or "anthropic").strip().lower()
-    if provider in {"disabled", "none", "off"}:
-        return None
-    if LLM.api_key or _env_llm_key(provider):
+    llm = _llm_settings()
+    if llm is None:
+        return (
+            "Could not read the LLM configuration: tools/llm_providers.py is not "
+            "importable. Run this from the project directory."
+        )
+    if llm.is_disabled or llm.api_key:
         return None
     return (
-        "No LLM credential: set LLM.api_key in this file, or export "
-        f"{'ANTHROPIC_API_KEY' if provider == 'anthropic' else 'OPENAI_API_KEY'} "
-        "or AGENT_LLM_API_KEY. Set LLM.provider = \"disabled\" to run rules-only."
+        "No LLM credential: set AGENT_LLM_API_KEY in .env (see .env.example). "
+        "ANTHROPIC_API_KEY, OPENAI_API_KEY and LLM_API_KEY also work. Set "
+        "AGENT_LLM_PROVIDER=disabled to run rules-only."
     )
 
 
-def _env_llm_key(provider: str) -> Optional[str]:
-
-    """Find a credential already present in the environment (never returned)."""
-    names = ["AGENT_LLM_API_KEY", "LLM_API_KEY"]
-    names.append("ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY")
-    for name in names:
-        if str(os.environ.get(name) or "").strip():
-            return name
-    return None
+def _describe_llm() -> str:
+    """Name the provider and model the agent will really call, for ``--check``."""
+    llm = _llm_settings()
+    if llm is None:
+        return "(unreadable: run this from the project directory)"
+    return f"{llm.kind} / {llm.model or '(vendor default)'} (from .env)"
 
 
 def summary() -> Dict[str, Any]:
@@ -541,13 +556,28 @@ def summary() -> Dict[str, Any]:
         JSON-serializable summary for ``--show`` and for support tickets.
     """
     smtp = _resolved_smtp(EMAIL)
+    llm = _llm_settings()
+    llm_summary: Dict[str, Any] = {"configured_in": ".env (AGENT_LLM_*)"}
+    if llm is None:
+        llm_summary.update(
+            {
+                "provider": "(unreadable)",
+                "model": "(unreadable)",
+                "endpoint": "(unreadable)",
+                "credential": "(unreadable)",
+            }
+        )
+    else:
+        llm_summary.update(
+            {
+                "provider": llm.kind,
+                "model": llm.model or "(vendor default)",
+                "endpoint": llm.base_url or "(vendor default)",
+                "credential": "set" if llm.api_key else "MISSING",
+            }
+        )
     return {
-        "llm": {
-            "provider": (LLM.provider or "anthropic").strip().lower(),
-            "model": LLM.model,
-            "endpoint": LLM.base_url or "(vendor default)",
-            "credential": "set" if (LLM.api_key or _env_llm_key(LLM.provider)) else "MISSING",
-        },
+        "llm": llm_summary,
         "email": {
             "enabled": EMAIL.enabled,
             "from": _format_from(),
@@ -587,16 +617,18 @@ def check_llm() -> Tuple[bool, str]:
         ``(ok, message)``. Never raises.
     """
     load_dotenv()
-    apply()
     missing = _missing_llm_credential()
     if missing:
         return False, missing
     try:
-        from tools.llm_providers import LlmProviderConfig, create_llm_client
+        from tools.llm_providers import create_llm_client
 
-        config = LlmProviderConfig.from_env()
-        if config.is_disabled:
-            return True, "disabled on purpose: the agent will use its rule engine."
+        config = _llm_settings()
+        if config is None or config.is_disabled:
+            return True, (
+                "AGENT_LLM_PROVIDER=disabled on purpose: the agent will use its "
+                "rule engine."
+            )
         client = create_llm_client(config)
         if client is None:
             return True, "no model configured: the agent will use its rule engine."
@@ -631,18 +663,23 @@ def check_email() -> Tuple[bool, str]:
     smtp = _resolved_smtp(EMAIL)
     import smtplib
 
+    from tools.config import MessagingConfig
     from tools.tls import default_ssl_context
+
+    # Same timeout the real send path uses, so a slow server behaves here
+    # exactly as it will when a patient reminder is transmitted.
+    timeout = MessagingConfig.from_env().timeout_seconds
 
     connection = None
     try:
         if smtp["use_ssl"]:
             connection = smtplib.SMTP_SSL(
-                smtp["host"], smtp["port"], timeout=LLM.timeout_seconds,
+                smtp["host"], smtp["port"], timeout=timeout,
                 context=default_ssl_context(),
             )
         else:
             connection = smtplib.SMTP(
-                smtp["host"], smtp["port"], timeout=LLM.timeout_seconds
+                smtp["host"], smtp["port"], timeout=timeout
             )
             connection.ehlo()
             if smtp["use_starttls"]:
@@ -769,7 +806,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("CLINIC INTEGRATION CHECK (sends nothing)")
         print("=" * 70)
         print(f"  From address : {_format_from()}")
-        print(f"  LLM          : {(LLM.provider or 'anthropic')} / {LLM.model or '(default)'}")
+        print(f"  LLM (.env)   : {_describe_llm()}")
         print()
         problems = validate()
         if problems:
