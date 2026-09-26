@@ -17,6 +17,14 @@ tzdata==2024.1
 # data parsing (handles messy/swapped field values). Also drives the openai-
 # compatible path in tools/llm_providers.py (Gemini, vLLM, LiteLLM, etc.).
 openai==1.51.0
+# openai 1.51.0 passes the removed ``proxies=`` argument to httpx, so httpx 0.28
+# (which dropped it) breaks every request with "Client.__init__() got an
+# unexpected keyword argument 'proxies'". The failure is silent from the
+# caller's side -- the parser logs it and falls back to the rules -- so the
+# working resolver is pinned explicitly rather than left to chance.
+# httpx is an openai requirement (openai: httpx>=0.23,<1) and nothing else in
+# this project uses it; anthropic/mcp use the separate httpx2 package.
+httpx==0.27.2
 # Required for LIVE Claude (or any Anthropic-compatible endpoint) usage: the
 # tools/ tool-use loop AND the agent's DECIDE step (agent/decision.py). Everything
 # else, including the offline demo and the whole test suite, runs without it --

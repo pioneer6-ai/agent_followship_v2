@@ -388,6 +388,23 @@ cd agent_followship_v2
 pip install -r requirements.txt
 ```
 
+### The model is never used after upgrading packages
+
+`requirements.txt` pins a matching pair: `openai==1.51.0` with `httpx==0.27.2`.
+Upgrade `httpx` on its own and every request dies with
+
+```
+Client.__init__() got an unexpected keyword argument 'proxies'
+```
+
+`httpx` 0.28 removed that argument and this `openai` still passes it. The agent
+keeps working — each caller logs the error and falls back to its rules — but it
+never reaches the model, so the failure is easy to miss. Restore the pair:
+
+```bash
+pip install "httpx<0.28"
+```
+
 ### No sample data
 
 The sample data is automatically initialized when running:

@@ -518,3 +518,31 @@ class TestRequirementsTemplate:
             assert re.fullmatch(r"[A-Za-z0-9._-]+==[A-Za-z0-9._+-]+", stripped), (
                 f"unparseable requirement line: {line!r}"
             )
+
+    def test_the_openai_pin_keeps_a_compatible_httpx(self):
+        """
+        ``openai`` and ``httpx`` cannot be pinned independently.
+
+        openai 1.51.0 still passes the ``proxies=`` argument that httpx removed
+        in 0.28, so an unpinned httpx resolves to a version that makes every
+        request raise ``Client.__init__() got an unexpected keyword argument
+        'proxies'``. Nothing crashes visibly: the callers log it and fall back
+        to the rules, so the whole LLM feature goes quiet while the tests stay
+        green. Pin the pair together, or lift the httpx pin with the openai one.
+        """
+        pins = dict(
+            line.split("==")
+            for line in _read("requirements.txt").splitlines()
+            if "==" in line and not line.strip().startswith("#")
+        )
+        pins = {name.strip(): version.strip() for name, version in pins.items()}
+        if "openai" not in pins or "httpx" not in pins:
+            return
+
+        openai_major_minor = tuple(int(p) for p in pins["openai"].split(".")[:2])
+        httpx_version = tuple(int(p) for p in pins["httpx"].split(".")[:2])
+        if openai_major_minor <= (1, 51):
+            assert httpx_version < (0, 28), (
+                "openai %s needs httpx<0.28; %s breaks it with the removed "
+                "`proxies` argument" % (pins["openai"], pins["httpx"])
+            )
