@@ -207,7 +207,9 @@ File upload (CSV / TSV / JSON / TXT / XLSX via openpyxl; not legacy .xls)
     │
     ▼
 POST /api/upload-patient-list            web/app.py
-    └─→ LLMPatientParser.parse_file()    utils/llm_parser.py
+    └─→ LLMPatientParser.from_environment()  utils/llm_parser.py
+          │     switch, model and key come from .env (AGENT_LLM_*);
+          │     AGENT_LLM_PROVIDER=disabled, or no credential -> rules only
           ├─ format-specific reader, then _standardize_patient_data()
           ├─ daysoverdue = max(0, (today - last_visit_date) - recall_interval_days)
           └─→ preview rows (nothing is stored yet)
@@ -228,9 +230,10 @@ Two independent failure modes, worth knowing when a list "does not show up":
     store but produce no case until it is genuinely overdue.
 ```
 
-Note: `web/app.py` constructs `LLMPatientParser(use_llm=False)`, so import is
-entirely rule-based (`use_llm=True` plus a key is what enables the optional model
-assist). The import path needs no credentials and no network.
+Note: `web/app.py` constructs `LLMPatientParser.from_environment()`, so the
+switch follows `.env`. The import path itself needs no credentials and no
+network: with `AGENT_LLM_PROVIDER=disabled`, or simply with no credential
+configured, the reader and the rules alone do the whole job.
 
 ## The hospital interface (`hospital_setup.py`)
 
@@ -297,7 +300,7 @@ call paths are:
 | Patient chat replies | `agent/patient_chat.py` |
 | Agent-drafted notifications | `agent/notifications.py` (`MessageComposerAgent._llm_client`) |
 | Dashboard status + probe | `web/app.py` `/api/llm-status`, `/api/llm-check` |
-| The optional import assist | `utils/llm_parser.py` -- reads `AGENT_LLM_MODEL` itself and builds its own `openai` client |
+| The optional import assist | `utils/llm_parser.py` -- builds its `openai` client from the same `.env` values and is switched off by `AGENT_LLM_PROVIDER=disabled` |
 | The clinic check | `hospital_setup.check_llm()` -- reads the *same* `.env` settings |
 
 `hospital_setup.py` has no LLM dataclass and no `check_llm()` alternative: the
@@ -648,7 +651,7 @@ and no network: `FakeTransport` / `FakeSmtpConnection` record requests,
 so the agent's failure handling is exercised without touching a provider.
 
 ```bash
-.venv/bin/python -m pytest tests/ -q          # 937 tests
+.venv/bin/python -m pytest tests/ -q          # 952 tests
 .venv/bin/python -m tools.demo_tool_use       # 3 scenarios, 11 checks
 ```
 

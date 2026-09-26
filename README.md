@@ -254,6 +254,14 @@ optional import assist (`utils/llm_parser.py`) — goes through the environment:
 | `AGENT_LLM_PROVIDER` / `_MODEL` / `_API_KEY` / `_BASE_URL` / `_API_VERSION` / `_TIMEOUT_SECONDS` / `_MAX_TOKENS` / `_ORGANIZATION` / `_EXTRA_HEADERS` / `_THINKING_DISABLED` | `tools.llm_providers.LlmProviderConfig.from_env()` |
 | `AGENT_DECISION_MODEL` (legacy alias) | same, as a fallback for `AGENT_LLM_MODEL` |
 
+The upload parser (`utils/llm_parser.py`) reads the same file and nothing else.
+Its switch is `AGENT_LLM_PROVIDER`: set it to `disabled` and an uploaded patient
+list is parsed by the deterministic rules; leave an OpenAI-compatible endpoint
+configured and it spends one model call per file classifying the column names.
+`web/app.py` builds it as `LLMPatientParser.from_environment()`, so there is no
+`use_llm=True` in Python to keep in sync with the file — with no credential at
+all it stays on the rule path by itself.
+
 Change the model, the vendor or the endpoint by editing `.env` and restarting —
 never by editing Python. `python hospital_setup.py --check` reads those *same*
 settings, so a passing check cannot disagree with what the agent will do at

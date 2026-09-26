@@ -1,10 +1,15 @@
 """
 LLM-powered patient data parser.
 
-This module uses Large Language Models to intelligently parse
+This module uses a Large Language Model to intelligently parse
 patient data from various formats (CSV, Excel, JSON, plain text).
 The LLM can handle different schemas, naming conventions, and
 data structures automatically.
+
+The model is not chosen here: it is configured in the project's ``.env``
+(``AGENT_LLM_PROVIDER`` / ``AGENT_LLM_MODEL`` / ``AGENT_LLM_BASE_URL`` /
+``AGENT_LLM_API_KEY``), read through ``tools/llm_providers``. Set
+``AGENT_LLM_PROVIDER=disabled`` to parse with the deterministic rules only.
 """
 
 import json
@@ -50,25 +55,99 @@ class LLMPatientParser:
     - Inconsistent naming conventions
     """
     
-    def __init__(self, use_llm: bool = False, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        use_llm: Optional[bool] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
         """
         Initialize the parser.
-        
+
+        Every setting comes from the project's ``.env`` file (the ``AGENT_LLM_*``
+        variables). The on/off switch is answered by
+        ``tools.llm_providers.LlmProviderConfig.from_env`` -- the same source the
+        agent's decision engine uses -- so a clinic configures the model in one
+        place and no call site hardcodes it. The endpoint values below are the
+        same variables that layer reads.
+
         Args:
-            use_llm: Whether to use actual LLM API (requires API key)
-            api_key: API key for LLM service. If None, reads from env vars:
-                     AGENT_LLM_API_KEY -> LLM_API_KEY -> OPENAI_API_KEY
+            use_llm: ``None`` (the default) decides from the environment: the
+                model is used unless ``AGENT_LLM_PROVIDER=disabled``. Pass
+                ``True``/``False`` to force it, which is what tests do.
+            api_key: Override for the credential. Defaults to the environment
+                order ``AGENT_LLM_API_KEY`` -> ``LLM_API_KEY`` ->
+                ``OPENAI_API_KEY``.
+            model: Override for the model id. Defaults to
+                ``AGENT_LLM_MODEL``, then the OpenAI-compatible default.
+            base_url: Override for the endpoint root. Defaults to
+                ``AGENT_LLM_BASE_URL``.
         """
-        self.use_llm = use_llm
-        # Resolve API key from env if not provided
+        config = self._provider_config()
+        self.provider = config.kind if config is not None else ""
+        self.use_llm = self._resolve_use_llm(use_llm, config)
         self.api_key = (
             api_key
             or os.environ.get("AGENT_LLM_API_KEY")
             or os.environ.get("LLM_API_KEY")
             or os.environ.get("OPENAI_API_KEY")
         )
-        self.base_url = os.environ.get("AGENT_LLM_BASE_URL") or None
-        self.model = os.environ.get("AGENT_LLM_MODEL") or "gpt-4o-mini"
+        self.base_url = base_url or os.environ.get("AGENT_LLM_BASE_URL") or None
+        self.model = model or os.environ.get("AGENT_LLM_MODEL") or "gpt-4o-mini"
+
+    @classmethod
+    def from_environment(cls, **kwargs: Any) -> "LLMPatientParser":
+        """
+        Build a parser configured entirely by ``.env``.
+
+        This is the constructor application code should use: it leaves the
+        ``use_llm`` decision to the environment instead of hardcoding it.
+
+        Args:
+            **kwargs: Overrides forwarded to :meth:`__init__`.
+
+        Returns:
+            A parser that calls the model only when ``.env`` enables one and
+            supplies a credential.
+        """
+        return cls(**kwargs)
+
+    @staticmethod
+    def _provider_config() -> Optional[Any]:
+        """
+        Read the ``.env`` LLM configuration, or ``None`` if unavailable.
+
+        The import is guarded because this module is also used stand-alone by
+        the upload path, which must keep working from a partial checkout.
+        """
+        try:
+            from tools.llm_providers import LlmProviderConfig
+        except ImportError:  # pragma: no cover - tools/ ships with the project
+            return None
+        return LlmProviderConfig.from_env()
+
+    @staticmethod
+    def _resolve_use_llm(explicit: Optional[bool], config: Optional[Any]) -> bool:
+        """
+        Decide whether the model may be used, from the environment when asked.
+
+        Only ``AGENT_LLM_PROVIDER=disabled`` (and its documented aliases, e.g.
+        ``none`` / ``off`` / ``rules``) switches this off. Without an explicit
+        answer the credential still has to be present to make a call -- see
+        :attr:`llm_ready` -- so an unconfigured deployment stays on the
+        deterministic rule path without any code change.
+        """
+        if explicit is not None:
+            return explicit
+        if config is None:
+            return True
+        return not config.is_disabled
+
+    @property
+    def llm_ready(self) -> bool:
+        """Whether a parse will actually call the model: enabled *and* keyed."""
+        return bool(self.use_llm and self.api_key)
     
     def parse_file(self, file_content: bytes, filename: str) -> List[Dict[str, Any]]:
         """
@@ -103,7 +182,7 @@ class LLMPatientParser:
         if not rows:
             return []
 
-        if self.use_llm and self.api_key:
+        if self.llm_ready:
             try:
                 return self._parse_all_with_llm(rows)
             except Exception as e:
@@ -157,7 +236,7 @@ class LLMPatientParser:
                 }
                 patients.append(record)
 
-            if self.use_llm and self.api_key and patients:
+            if self.llm_ready and patients:
                 try:
                     return self._parse_all_with_llm(patients)
                 except Exception as e:
@@ -181,7 +260,7 @@ class LLMPatientParser:
         else:
             raise ValueError("Unexpected JSON structure")
 
-        if self.use_llm and self.api_key and patients:
+        if self.llm_ready and patients:
             try:
                 return self._parse_all_with_llm(patients)
             except Exception as e:
@@ -224,7 +303,7 @@ class LLMPatientParser:
         if current_patient:
             patients.append(current_patient)
 
-        if self.use_llm and self.api_key and patients:
+        if self.llm_ready and patients:
             try:
                 return self._parse_all_with_llm(patients)
             except Exception as e:
@@ -601,6 +680,6 @@ Return only the JSON object, no explanation."""
         Calls the Gemini/OpenAI-compatible API to extract correct fields
         even when values are in wrong keys.
         """
-        if self.api_key:
+        if self.llm_ready:
             return self._parse_with_llm_api(raw_data)
         return self._rule_based_standardize(raw_data)

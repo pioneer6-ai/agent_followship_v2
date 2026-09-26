@@ -130,8 +130,13 @@ agent = FollowUpAgentOrchestrator.with_llm_decisions(
     portal_link_provider=portal_link_provider,
 )
 
-# Initialize LLM parser
-llm_parser = LLMPatientParser(use_llm=True)  # Set to True with API key for real LLM
+# Initialize the LLM parser for uploaded patient lists. Whether a model is
+# used at all is decided in .env (AGENT_LLM_PROVIDER; AGENT_LLM_MODEL,
+# AGENT_LLM_BASE_URL and AGENT_LLM_API_KEY for the endpoint), read through
+# tools/llm_providers -- so there is no hardcoded switch here. With no
+# credential, or with AGENT_LLM_PROVIDER=disabled, it stays on the
+# deterministic rule path.
+llm_parser = LLMPatientParser.from_environment()
 
 # Secondary chat assistant for the patient portal. Shares the SAME
 # `agent`/`data_store`/`calendar` instances above - a booking made here is
