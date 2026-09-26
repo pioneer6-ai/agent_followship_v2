@@ -1,0 +1,126 @@
+{
+  "generated_at": "2026-09-25T09:06:57+00:00",
+  "server": {
+    "base_url": "http://127.0.0.1:54301",
+    "port": 54301
+  },
+  "drive": {
+    "cycle": {
+      "cases_processed": 11,
+      "success": true,
+      "timestamp": "2026-09-25T17:06:53.975903"
+    },
+    "replies": [
+      {
+        "patient_id": "P001",
+        "message": "Yes, I'd like to schedule an appointment",
+        "response": {
+          "success": true,
+          "timestamp": "2026-09-25T17:06:53.980390"
+        },
+        "status_before": "message_sent",
+        "status_after": "awaiting_reply"
+      },
+      {
+        "patient_id": "P007",
+        "message": "No thanks, not needed right now",
+        "response": {
+          "success": true,
+          "timestamp": "2026-09-25T17:06:53.982108"
+        },
+        "status_before": "message_sent",
+        "status_after": "declined"
+      },
+      {
+        "patient_id": "P004",
+        "message": "How much will this cost with my insurance?",
+        "response": {
+          "success": true,
+          "timestamp": "2026-09-25T17:06:53.983923"
+        },
+        "status_before": "message_sent",
+        "status_after": "escalated"
+      }
+    ]
+  },
+  "audit_isolation": {
+    "directory_basename": "followup-dashboard-*",
+    "audit_log_written": true,
+    "note": "The capture ran in a temporary directory, so audit_log.json was written there and discarded. The audit trail in evidence 1 is unaffected by exercising the agent here."
+  },
+  "screenshot": {
+    "returncode": 0,
+    "size_bytes": 475711,
+    "viewport": "1600x1400",
+    "note": "Headless Chrome --screenshot with 10s virtual time budget"
+  },
+  "status_api": {
+    "audit_summary": {
+      "successful_bookings": 0,
+      "total_communications": 17,
+      "total_decisions": 12,
+      "total_log_entries": 29
+    },
+    "cases_by_status": {
+      "awaiting_reply": 1,
+      "booked": 0,
+      "declined": 1,
+      "escalated": 1,
+      "message_sent": 8,
+      "opted_out": 0,
+      "pending": 0,
+      "pending_future_availability": 0
+    },
+    "cases_by_urgency": {
+      "critical": 3,
+      "high": 2,
+      "low": 3,
+      "medium": 3
+    },
+    "escalated_cases": 1,
+    "last_updated": "2026-09-25T17:06:55.280205",
+    "total_active_cases": 11,
+    "total_patients": 12
+  },
+  "cases_summary": {
+    "count": 11,
+    "sample": {
+      "conversation_length": 6,
+      "days_overdue": 69,
+      "last_contacted": "2026-09-25",
+      "last_visit": "2026-06-27",
+      "patient_id": "P001",
+      "patient_name": "Sarah Johnson",
+      "preferred_channel": "sms",
+      "reminder_count": 1,
+      "status": "awaiting_reply",
+      "treatment_type": "post_surgery",
+      "urgency": "critical"
+    }
+  },
+  "patient_portal": {
+    "patient_id": "P001",
+    "token_issued": true,
+    "portal_url": "/patient/QITt-c7mJE6WhJtNDUIjdVGqpQPPrnJs",
+    "screenshot": {
+      "returncode": 0,
+      "size_bytes": 736923
+    },
+    "status_api": {
+      "booking_window_days": 7,
+      "next_followup_at": null,
+      "patient_name": "Sarah Johnson",
+      "status": "awaiting_reply",
+      "success": true,
+      "treatment_type": "post_surgery"
+    },
+    "artifacts": {
+      "screenshot": "proposal/evidence/screenshots/patient_portal.png"
+    }
+  },
+  "artifacts": {
+    "screenshot": "proposal/evidence/screenshots/dashboard_overview.png",
+    "status_api": "proposal/evidence/screenshots/dashboard_status_api.json",
+    "cases_api": "proposal/evidence/screenshots/dashboard_cases_api.json"
+  }
+}

@@ -150,6 +150,13 @@ class LlmSettings:
     #   provider="openai", model="your-model",
     #   base_url="https://llm.yourhospital.internal/v1"
     #
+    # DeepSeek (Anthropic-compatible endpoint). Leave api_key empty and export
+    # AGENT_LLM_API_KEY instead, so no credential is ever committed here.
+    # AGENT_LLM_THINKING_DISABLED=1 is required: DeepSeek reasons by default,
+    # and reasoning mode rejects the forced tool call the decision step makes.
+    #   provider="anthropic", model="deepseek-flash",
+    #   base_url="https://api.deepseek.com/anthropic"
+    #
     # Rules only -- no model, no outbound call, fully deterministic:
     #   provider="disabled"
 

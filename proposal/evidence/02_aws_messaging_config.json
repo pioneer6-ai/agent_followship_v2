@@ -1,0 +1,93 @@
+{
+  "generated_at": "2026-09-25T09:30:27+00:00",
+  "region": "ap-southeast-1",
+  "configuration": {
+    "MESSAGING_DRY_RUN": "0",
+    "AWS_REGION": "ap-southeast-1",
+    "AWS_SES_SOURCE": "brightsmileagent@gmail.com",
+    "AWS_SES_CONFIGURATION_SET": "patient-followup",
+    "AWS_SMS_ORIGINATION_IDENTITY": "+6585144321",
+    "AWS_SMS_ALLOWED_NUMBERS": "+6583536885",
+    "AWS_EMAIL_ALLOWED_ADDRESSES": "martinchenonly1@gmail.com,rgjh1996@gmail.com",
+    "AGENT_LIVE_SENDS": ""
+  },
+  "configuration_source": ".env",
+  "live": {
+    "session": "authenticated",
+    "checks": {
+      "caller_identity": {
+        "ok": true,
+        "data": {
+          "UserId": "621236283593",
+          "Account": "621236283593",
+          "Arn": "arn:aws:iam::621236283593:root"
+        },
+        "error": null
+      },
+      "ses_verified_identities": {
+        "ok": true,
+        "data": {
+          "Identities": [
+            "martinchenonly1@gmail.com",
+            "rgjh1996@gmail.com",
+            "brightsmileagent@gmail.com"
+          ]
+        },
+        "error": null
+      },
+      "ses_send_quota": {
+        "ok": true,
+        "data": {
+          "Max24HourSend": 200.0,
+          "MaxSendRate": 1.0,
+          "SentLast24Hours": 3.0
+        },
+        "error": null
+      },
+      "ses_sending_enabled": {
+        "ok": true,
+        "data": {
+          "Enabled": true
+        },
+        "error": null
+      },
+      "sms_account_attributes": {
+        "ok": false,
+        "data": null,
+        "error": "aws: [ERROR]: An error occurred (SubscriptionRequiredException) when calling the DescribeAccountAttributes operation: The AWS Access Key Id needs a subscription for the service"
+      },
+      "sms_verified_destination_numbers": {
+        "ok": false,
+        "data": null,
+        "error": "aws: [ERROR]: An error occurred (SubscriptionRequiredException) when calling the DescribeVerifiedDestinationNumbers operation: The AWS Access Key Id needs a subscription for the service"
+      }
+    }
+  },
+  "code_references": [
+    {
+      "file": "tools/aws_providers.py",
+      "needle": "client.send_text_message",
+      "line": 307
+    },
+    {
+      "file": "tools/aws_providers.py",
+      "needle": "client.send_email",
+      "line": 348
+    },
+    {
+      "file": "tools/messaging.py",
+      "needle": "def send_sms",
+      "line": 383
+    },
+    {
+      "file": "tools/messaging.py",
+      "needle": "def send_email",
+      "line": 413
+    },
+    {
+      "file": "agent/delivery.py",
+      "needle": "def is_configured_for_live_sends",
+      "line": 334
+    }
+  ]
+}

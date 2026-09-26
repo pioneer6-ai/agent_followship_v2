@@ -1,0 +1,318 @@
+{
+  "generated_at": "2026-09-25T09:02:41+00:00",
+  "source": {
+    "live_path": "audit_log.json",
+    "snapshot_path": "proposal/evidence/artifacts/audit_log_snapshot.json",
+    "sha256": "76551f7389296eda3ff1d905ec5ed8c486f98fccd12cff0db80e9cd9bff06644",
+    "size_bytes": 261297
+  },
+  "capture_environment": {
+    "python": "3.14.5",
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O"
+  },
+  "totals": {
+    "events": 493,
+    "decisions": 463,
+    "communications": 30,
+    "distinct_patients": 11,
+    "first_event": "2026-09-25T17:02:28.137398",
+    "last_event": "2026-09-25T17:02:28.732906"
+  },
+  "decisions": {
+    "by_action": {
+      "do_nothing": 430,
+      "send_reminder": 22,
+      "escalate_to_staff": 11
+    },
+    "by_urgency": {
+      "critical": 209,
+      "high": 150,
+      "medium": 78,
+      "low": 26
+    },
+    "by_case_status": {
+      "escalated": 282,
+      "message_sent": 98,
+      "booked": 39,
+      "declined": 32,
+      "pending": 11,
+      "awaiting_reply": 1
+    },
+    "escalation_actions": 11,
+    "patients_ever_escalated": 9,
+    "escalation_rate_pct": 2.4
+  },
+  "communications": {
+    "attempts": 30,
+    "succeeded": 30,
+    "failed": 0,
+    "success_rate_pct": 100.0,
+    "outbound": 26,
+    "inbound_replies": 4,
+    "by_channel": {
+      "email": {
+        "attempts": 12,
+        "succeeded": 12,
+        "failed": 0,
+        "success_rate_pct": 100.0
+      },
+      "sms": {
+        "attempts": 9,
+        "succeeded": 9,
+        "failed": 0,
+        "success_rate_pct": 100.0
+      },
+      "whatsapp": {
+        "attempts": 7,
+        "succeeded": 7,
+        "failed": 0,
+        "success_rate_pct": 100.0
+      },
+      "phone_call": {
+        "attempts": 2,
+        "succeeded": 2,
+        "failed": 0,
+        "success_rate_pct": 100.0
+      }
+    }
+  },
+  "scope_note": "The agent's default delivery backend prints instead of transmitting; real sends require MESSAGING_DRY_RUN=0 AND AGENT_LIVE_SENDS=1. These events therefore evidence the agent's decisions and its audit trail, not message transmission.",
+  "generation": {
+    "base_day": "2026-09-21",
+    "period_end": "2026-11-01",
+    "days": 42,
+    "cycles": [
+      {
+        "day": "2026-09-21",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-22",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-23",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-24",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-25",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-26",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-27",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-28",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-29",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-09-30",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-01",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-02",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-03",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-04",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-05",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-06",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-07",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-08",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-09",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-10",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-11",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-12",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-13",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-14",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-15",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-16",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-17",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-18",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-19",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-20",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-21",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-22",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-23",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-24",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-25",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-26",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-27",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-28",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-29",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-30",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-10-31",
+        "cases_processed": 11
+      },
+      {
+        "day": "2026-11-01",
+        "cases_processed": 11
+      }
+    ],
+    "replies": [
+      {
+        "day": "2026-09-23",
+        "patient_id": "P006",
+        "message": "Yes, I'd like to schedule an appointment",
+        "status_before": "message_sent",
+        "status_after": "booked"
+      },
+      {
+        "day": "2026-09-30",
+        "patient_id": "P007",
+        "message": "No thanks, not needed right now",
+        "status_before": "message_sent",
+        "status_after": "declined"
+      },
+      {
+        "day": "2026-10-07",
+        "patient_id": "P004",
+        "message": "How much will this cost with my insurance?",
+        "status_before": "escalated",
+        "status_after": "escalated"
+      },
+      {
+        "day": "2026-10-14",
+        "patient_id": "P003",
+        "message": "Can I come in next week?",
+        "status_before": "escalated",
+        "status_after": "awaiting_reply"
+      },
+      {
+        "day": "2026-10-21",
+        "patient_id": "P011",
+        "message": "Yes please",
+        "status_before": null,
+        "status_after": "no_case"
+      }
+    ],
+    "final_case_statuses": {
+      "escalated": 9,
+      "declined": 1,
+      "booked": 1
+    },
+    "events_written": 493,
+    "event_types": {
+      "agent_decision": 463,
+      "communication": 30
+    },
+    "decisions_by_action": {
+      "send_reminder": 22,
+      "escalate_to_staff": 11,
+      "do_nothing": 430
+    },
+    "communications_by_channel": {
+      "sms": 9,
+      "whatsapp": 7,
+      "phone_call": 2,
+      "email": 12
+    },
+    "offline_deliveries_observed": 37,
+    "offline_channels": true,
+    "note": "Channels were the offline printing backend, asserted at both ends: every constructed channel had to be a PrintDeliveryBackend, and the transmitting backend's deliver() was patched to raise. That is what makes this a record of decisions instead of transmission. The sample patients carry invented addresses, so the run must not transmit; real transmission is evidenced by capture_live_send.py.",
+    "snapshot_path": "proposal/evidence/artifacts/audit_log.generation.json",
+    "sha256": "42da6d67abc3fdad5415daab3e377b2b44c9c3531acad79079b20df89eb59243"
+  }
+}

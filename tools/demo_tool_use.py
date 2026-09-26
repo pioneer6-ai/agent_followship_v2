@@ -48,8 +48,8 @@ from tools.llm_agent import (
 from tools.messaging import CHANNEL_ORDER, EscalationLog, build_tool_registry
 from tools.transport import FakeSmtpConnection, FakeTransport
 
-CLINIC_PHONE = "+15550002222"
-CLINIC_EMAIL = "frontdesk@brightsmile.example"
+CLINIC_PHONE = "+6585144321"
+CLINIC_EMAIL = "brightsmileagent@gmail.com"
 
 #: Fake credentials: enough for every provider to consider itself configured,
 #: so the real request-building and error-classification paths execute.

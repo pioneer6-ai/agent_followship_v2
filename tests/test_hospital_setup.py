@@ -527,9 +527,19 @@ class TestChecksNeverRaise:
         assert ok is False
         assert "enabled" in message
 
-    def test_check_llm_reports_a_missing_credential_rather_than_an_sdk_error(self):
+    def test_check_llm_reports_a_missing_credential_rather_than_an_sdk_error(
+        self, monkeypatch
+    ):
         # "install the anthropic package" would be the wrong advice for a
         # clinic that simply has not pasted a key.
+        #
+        # check_llm() reads .env itself, so the repository's own file must be
+        # neutralised: otherwise this asserts the developer's credentials
+        # rather than the diagnosis path under test.
+        for name in ("AGENT_LLM_API_KEY", "LLM_API_KEY", "ANTHROPIC_API_KEY",
+                     "OPENAI_API_KEY"):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setattr(hs, "load_dotenv", lambda: None)
         ok, message = hs.check_llm()
         assert ok is False
         assert "credential" in message.lower()

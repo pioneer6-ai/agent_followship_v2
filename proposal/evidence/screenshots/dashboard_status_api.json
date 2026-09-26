@@ -1,0 +1,28 @@
+{
+  "audit_summary": {
+    "successful_bookings": 0,
+    "total_communications": 17,
+    "total_decisions": 12,
+    "total_log_entries": 29
+  },
+  "cases_by_status": {
+    "awaiting_reply": 1,
+    "booked": 0,
+    "declined": 1,
+    "escalated": 1,
+    "message_sent": 8,
+    "opted_out": 0,
+    "pending": 0,
+    "pending_future_availability": 0
+  },
+  "cases_by_urgency": {
+    "critical": 3,
+    "high": 2,
+    "low": 3,
+    "medium": 3
+  },
+  "escalated_cases": 1,
+  "last_updated": "2026-09-25T17:06:55.280205",
+  "total_active_cases": 11,
+  "total_patients": 12
+}

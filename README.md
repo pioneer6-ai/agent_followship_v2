@@ -476,6 +476,7 @@ The environment form above is the recommended one.
 | `AGENT_LLM_MAX_TOKENS` | `1024` | Completion budget per decision. |
 | `AGENT_LLM_ORGANIZATION` | — | OpenAI organization header. |
 | `AGENT_LLM_EXTRA_HEADERS` | — | Extra request headers, as JSON. |
+| `AGENT_LLM_COMPOSE_MESSAGES` | off | Who writes the *text* of a patient-facing draft. Off uses the deterministic templates. On has the model compose the wording while the decision engine still picks the recipient, channel and timing — the model writes prose, it cannot decide to send. Every failure (no credential, unreachable endpoint, empty reply) falls back to the template, so turning it on cannot stop a clinic from drafting. Turning it on cannot start a send either: a draft still waits for staff confirmation. |
 | `AGENT_DECISION_MODEL` | — | Legacy alias for `AGENT_LLM_MODEL`; kept for compatibility. |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | — | Vendor-native credential names, accepted as fallbacks. |
 | `LLM_API_KEY` | — | Generic credential fallback, checked before the vendor variables. |
@@ -900,7 +901,7 @@ tools will report `config_missing` with `NoCredentialsError` even though the CLI
 works. Export the credentials the SDK can consume:
 
 ```bash
-eval "$(aws configure export-credentials --export-env)"
+eval "$(aws configure export-credentials --format env)"
 # or, without exporting into your shell:
 .venv/bin/python - <<'PY'
 import json, os, subprocess
@@ -1057,6 +1058,32 @@ The system includes 8 predefined test scenarios:
 
 The dashboard runs on `http://localhost:8080` (`python web/app.py`). All
 endpoints below are relative to that. `GET /` serves the dashboard page itself.
+
+### The draft-then-confirm workflow
+
+The agent never messages a patient on its own initiative. A cycle *drafts*, a
+person *approves*, and only then does anything leave the building:
+
+1. A cycle (`POST /api/run-cycle`) or a patient-list import
+   (`POST /api/import-patients`) queues a draft per action it wants to take.
+   Import auto-runs a cycle, so new patients arrive with drafts already waiting.
+2. The drafts appear on the **Review Patient Messages** page at
+   `/staff/outreach`, each showing the recipient, channel, the agent's reason and
+   `composed_by` (`llm` when the model wrote the wording, `template` when the
+   deterministic wording was used instead).
+3. A staff member edits any draft they disagree with
+   (`POST /api/outreach/update` records the new text plus `edited_by`/`edited_at`
+   and sends nothing).
+4. They tick the rows they want and press **Confirm Selected**
+   (`POST /api/outreach/confirm`). Only the selected drafts are transmitted, and
+   the **edited** text is what goes out. Unticked drafts stay queued; discarded
+   ones are dropped by `POST /api/outreach/cancel`.
+
+Confirming is the authorization: the click is the human decision. Real network
+traffic is still gated separately by `MESSAGING_DRY_RUN=0` **and**
+`AGENT_LIVE_SENDS=1`, so a demo can walk the whole workflow without mailing
+anyone. Drafts live in memory, so a server restart clears the queue — staff see
+a fresh set on the next cycle.
 
 | Method | Path | Purpose |
 |---|---|---|

@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-09-25T09:47:34+00:00",
+  "interpreter": {
+    "version": "3.14.5",
+    "implementation": "CPython",
+    "executable": "/Users/martinchen/agent_followship_v2/.venv/bin/python",
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O"
+  },
+  "packages": {
+    "boto3": "1.35.36",
+    "botocore": "1.35.99",
+    "anthropic": "not installed",
+    "flask": "3.0.0",
+    "openpyxl": "3.1.2",
+    "certifi": "2026.7.22"
+  },
+  "repository": {
+    "branch": "master",
+    "head_commit": "fbcc6c1ca09a7624fd5f01016e674cacdc4a5287",
+    "head_subject": "Merge pull request #3 from pioneer6-ai/feature/patient-portal",
+    "head_date": "2026-09-25T13:41:07+08:00",
+    "working_tree_clean": false,
+    "modified_files": [
+      "M .gitignore",
+      " M QUICKSTART.md",
+      " M README.md",
+      " M tools/demo_tool_use.py",
+      "?? proposal/"
+    ],
+    "remote": "git@github.com:pioneer6-ai/agent_followship_v2.git"
+  },
+  "source": {
+    "agent": {
+      "files": 9,
+      "lines": 4635
+    },
+    "core": {
+      "files": 11,
+      "lines": 1978
+    },
+    "tools": {
+      "files": 13,
+      "lines": 6118
+    },
+    "utils": {
+      "files": 2,
+      "lines": 1022
+    },
+    "web": {
+      "files": 5,
+      "lines": 3477
+    },
+    "scheduling": {
+      "files": 4,
+      "lines": 1321
+    },
+    "scripts": {
+      "files": 2,
+      "lines": 288
+    },
+    "tests": {
+      "files": 30,
+      "lines": 12119
+    },
+    "(root)": {
+      "files": 2,
+      "lines": 1115
+    }
+  }
+}

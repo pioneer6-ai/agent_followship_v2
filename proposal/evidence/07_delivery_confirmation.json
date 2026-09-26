@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-09-25T09:47:34+00:00",
+  "region": "ap-southeast-1",
+  "configuration_set": "patient-followup",
+  "subject_fragment": "delivery confirmation",
+  "sent_message": {
+    "message_id": "010e01a0d7e70489-3cadc714-db2a-4219-9174-efc749f3ae5f-000000",
+    "recipient": "martinchenonly1@gmail.com",
+    "status": "sent",
+    "simulated": null,
+    "generated_at": "2026-09-25T09:30:36+00:00"
+  },
+  "provider_telemetry": {
+    "waited_s": 0,
+    "metrics": {
+      "Delivery": [
+        {
+          "Timestamp": "2026-09-25T16:37:00+08:00",
+          "Sum": 1.0,
+          "Unit": "Count"
+        },
+        {
+          "Timestamp": "2026-09-25T17:02:00+08:00",
+          "Sum": 1.0,
+          "Unit": "Count"
+        },
+        {
+          "Timestamp": "2026-09-25T17:27:00+08:00",
+          "Sum": 3.0,
+          "Unit": "Count"
+        },
+        {
+          "Timestamp": "2026-09-25T17:32:00+08:00",
+          "Sum": 1.0,
+          "Unit": "Count"
+        }
+      ],
+      "Bounce": [],
+      "Complaint": []
+    },
+    "window_end": "2026-09-25T09:47:34.560453+00:00"
+  },
+  "mailbox": {
+    "attempted": true,
+    "mailbox_account": "martinchenonly1@gmail.com",
+    "folders": {
+      "INBOX": {
+        "matches": 0,
+        "headers": []
+      },
+      "spam": {
+        "matches": 5,
+        "headers": [
+          {
+            "subject": "Patient Follow-up Agent - delivery confirmation",
+            "from": "brightsmileagent@gmail.com",
+            "date": "Fri, 25 Sep 2026 09:30:11 +0000",
+            "message_id": "<010e01a0d7e6a32e-de7255b4-a647-42f4-8e67-7c915e659186-000000@ap-southeast-1.amazonses.com>"
+          },
+          {
+            "subject": "Patient Follow-up Agent - delivery confirmation",
+            "from": "brightsmileagent@gmail.com",
+            "date": "Fri, 25 Sep 2026 09:30:27 +0000",
+            "message_id": "<010e01a0d7e6e250-35534990-542e-4545-8385-16806cc2153c-000000@ap-southeast-1.amazonses.com>"
+          },
+          {
+            "subject": "Patient Follow-up Agent - delivery confirmation",
+            "from": "brightsmileagent@gmail.com",
+            "date": "Fri, 25 Sep 2026 09:30:36 +0000",
+            "message_id": "<010e01a0d7e70489-3cadc714-db2a-4219-9174-efc749f3ae5f-000000@ap-southeast-1.amazonses.com>"
+          }
+        ]
+      },
+      "all_mail": {
+        "matches": 0,
+        "headers": []
+      }
+    },
+    "error": null
+  }
+}

@@ -1,10 +1,11 @@
 """
 Shared fixtures for the messaging tool-layer tests.
 
-Everything here is offline: no network, no SMTP, no ``anthropic`` package. The
+Everything here is offline: no network, no SMTP, and no configured model. The
 transport and the SMTP connection are injected doubles, while the tools,
 providers, error classification and the tool-use loop under test are the real
-production code paths.
+production code paths. The ``anthropic`` package may be installed, but with no
+credential in the environment the LLM path still resolves to rules-only.
 """
 
 from __future__ import annotations
@@ -57,6 +58,43 @@ AWS_ENV: Dict[str, str] = {
     "AWS_SMS_ALLOWED_NUMBERS": AWS_TEST_PHONE,
     "AWS_EMAIL_ALLOWED_ADDRESSES": AWS_TEST_EMAIL,
 }
+
+
+#: The environment as it was *before* pytest imported any test module.
+#: ``web/app.py`` and the delivery factory legitimately call ``load_env_file()``
+#: at import time, and pytest imports every test module during collection -- so
+#: by the time the first test runs, the developer's real ``.env`` is already in
+#: ``os.environ``. Capturing it here, in the first module pytest imports, is the
+#: only point at which the pristine environment still exists.
+_PRISTINE_ENV: Dict[str, str] = dict(os.environ)
+
+#: pytest manages these itself and pops them during its own teardown, so
+#: deleting them here makes pytest raise ``KeyError: 'PYTEST_CURRENT_TEST'``.
+_PYTEST_OWNED_PREFIX = "PYTEST_"
+
+
+@pytest.fixture(autouse=True)
+def isolate_environment():
+    """
+    Restore the pristine ``os.environ`` after every test.
+
+    Without this the developer's ``.env`` -- which configures a live model and
+    live credentials -- leaks into every test and silently changes what the
+    assertions mean. The suite used to pass only because the shipped ``.env``
+    happened to configure no model at all. Each test now starts from the
+    developer's own shell environment plus whatever the test sets itself.
+    """
+    try:
+        yield
+    finally:
+        pytest_owned = {
+            key: value
+            for key, value in os.environ.items()
+            if key.startswith(_PYTEST_OWNED_PREFIX)
+        }
+        os.environ.clear()
+        os.environ.update(_PRISTINE_ENV)
+        os.environ.update(pytest_owned)
 
 
 @pytest.fixture

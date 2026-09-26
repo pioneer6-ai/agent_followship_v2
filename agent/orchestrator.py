@@ -33,6 +33,7 @@ from agent.delivery import (
 )
 from agent.notifications import (
     NotificationChannel, MessageComposerAgent, build_notification_channels,
+    message_composer_from_environment,
 )
 from agent.conversation import ConversationManager
 from agent.action_handlers import AppointmentScheduler, EscalationHandler, AuditLogger
@@ -68,6 +69,22 @@ CLOSED_STATUSES = (
 #: _record_confirmed_delivery and confirm_pending_sends below.
 _REMINDER_CONTEXTS = frozenset({"reminder", "initial", "urgent", "no_show"})
 
+#: Email subject per queue context. A single hardcoded subject mislabels every
+#: draft that is not a routine recall -- a no-show follow-up, a slot proposal or
+#: an agent reply would all arrive under "Dental Appointment Reminder". Keys must
+#: cover every value passed as ``context`` to ``_queue_outbound_message``;
+#: anything absent falls back to the generic subject below.
+CONTEXT_SUBJECTS = {
+    "reminder": "Reminder: your dental appointment",
+    "initial": "Reminder: your dental appointment",
+    "urgent": "Urgent: please contact the clinic",
+    "no_show": "We missed you at your appointment",
+    "slot proposal": "Available appointment times for you",
+    "booking confirmation": "Your appointment is confirmed",
+    "clarification request": "We need to confirm one detail before booking",
+    "reply": "Re: your message to the clinic",
+}
+
 
 class FollowUpAgentOrchestrator:
     """
@@ -98,6 +115,7 @@ class FollowUpAgentOrchestrator:
         policy_guard: Optional[PolicyGuard] = None,
         trigger_service: Optional[TriggerService] = None,
         portal_link_provider: Optional[Callable[[str], str]] = None,
+        message_composer: Optional[MessageComposerAgent] = None,
     ):
         """
         Initialize the agent orchestrator with all required subsystems.
@@ -133,6 +151,10 @@ class FollowUpAgentOrchestrator:
                 - never a second token system, never an HTTP call back into
                 the Flask app. Left ``None`` (the default), reminders are
                 composed exactly as before this feature existed.
+            message_composer: Drafts the patient-facing text. Defaults to a
+                composer built from the arguments above, which needs no
+                credentials; pass an LLM-backed one to have the model write
+                each draft.
         """
         # Store dependencies
         self.data_store = data_store
@@ -148,7 +170,7 @@ class FollowUpAgentOrchestrator:
         self.urgency_scorer = UrgencyScorer(self.urgency_config, self.policy)
 
         # Initialize communication components
-        self.message_composer = MessageComposerAgent(
+        self.message_composer = message_composer or MessageComposerAgent(
             portal_link_provider=portal_link_provider,
             booking_window_days=self.policy.booking_window_days,
         )
@@ -181,6 +203,11 @@ class FollowUpAgentOrchestrator:
         # This is deliberately in memory because the patient store is also
         # in-memory in this demo; each queue item is still fully inspectable.
         self._pending_sends: Dict[str, Dict[str, Any]] = {}
+        #: The case each queued send belongs to, keyed by ``send_id``. The live
+        #: object in :attr:`active_cases` is preferred at confirmation time so a
+        #: state change lands on the case the latest cycle produced; this is only
+        #: the fallback for a draft whose patient is no longer being tracked.
+        self._pending_cases: Dict[str, FollowUpCase] = {}
         self._pending_sends_lock = Lock()
 
     def _queue_outbound_message(
@@ -191,6 +218,7 @@ class FollowUpAgentOrchestrator:
         context: str,
         today: date,
         action: AgentAction,
+        composed_by: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Queue a patient message without calling any delivery backend."""
         patient = case.patient
@@ -222,7 +250,10 @@ class FollowUpAgentOrchestrator:
                 "recipient": recipient,
                 "available_channels": [channel.value for channel in channels],
                 "message": message,
-                "subject": "Dental Appointment Reminder",
+                "subject": CONTEXT_SUBJECTS.get(
+                    context, "Message from your dental clinic"
+                ),
+                "composed_by": composed_by or self.message_composer.last_source,
                 "urgency": case.urgency.value,
                 "days_overdue": case.days_overdue,
                 "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -231,6 +262,7 @@ class FollowUpAgentOrchestrator:
                 "dedupe_key": dedupe_key,
             }
             self._pending_sends[send_id] = item
+            self._pending_cases[send_id] = case
 
         case.add_to_log(
             f"Queued {context} for staff confirmation; message not sent"
@@ -290,6 +322,7 @@ class FollowUpAgentOrchestrator:
                     results.append({"send_id": send_id, "status": item["status"]})
                 else:
                     item["status"] = "cancelled"
+                    self._pending_cases.pop(send_id, None)
                     results.append({"send_id": send_id, "status": "cancelled"})
         return results
 
@@ -307,7 +340,7 @@ class FollowUpAgentOrchestrator:
                     continue
                 item["status"] = "sending"
 
-            case = self.active_cases.get(item["patient_id"])
+            case = self.active_cases.get(item["patient_id"]) or self._pending_cases.get(send_id)
             if case is None:
                 with self._pending_sends_lock:
                     item["status"] = "failed"
@@ -340,6 +373,7 @@ class FollowUpAgentOrchestrator:
 
             with self._pending_sends_lock:
                 item["status"] = status
+                self._pending_cases.pop(send_id, None)
             result = {"send_id": send_id, "status": status}
             if item.get("error"):
                 result["error"] = item["error"]
@@ -364,7 +398,12 @@ class FollowUpAgentOrchestrator:
         # of which specific message_type was actually sent.
         if context in _REMINDER_CONTEXTS:
             today = date.fromisoformat(item["scheduled_for"])
-            case.status = CaseStatus.MESSAGE_SENT
+            # A draft can outlive the state it was written for: staff may confirm
+            # a reminder queued before the patient booked, replied or opted out.
+            # Sending it must not drag a terminal case back to MESSAGE_SENT,
+            # which would re-open a closed case.
+            if case.status not in CLOSED_STATUSES:
+                case.status = CaseStatus.MESSAGE_SENT
             case.last_contacted = today
             case.reminder_count += 1
             case.add_to_log(f"Sent reminder via {outcome.channel.value}")
@@ -383,6 +422,7 @@ class FollowUpAgentOrchestrator:
         with self._pending_sends_lock:
             pending_count = len(self._pending_sends)
             self._pending_sends.clear()
+            self._pending_cases.clear()
 
         escalation_count = len(self.escalation_handler.escalated_cases)
         active_case_count = len(self.active_cases)
@@ -441,6 +481,13 @@ class FollowUpAgentOrchestrator:
         kwargs.setdefault(
             "decision_engine",
             LlmDecisionEngine.from_environment(resolved_policy, model=model),
+        )
+        kwargs.setdefault(
+            "message_composer",
+            message_composer_from_environment(
+                portal_link_provider=kwargs.get("portal_link_provider"),  # type: ignore[arg-type]
+                booking_window_days=resolved_policy.booking_window_days,
+            ),
         )
         return cls(data_store, calendar, resolved_policy, urgency_config=urgency_config_arg, **kwargs)  # type: ignore[arg-type]
 

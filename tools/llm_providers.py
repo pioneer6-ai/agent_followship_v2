@@ -104,6 +104,10 @@ class LlmProviderConfig:
         max_tokens: Default completion budget when a caller omits one.
         extra_headers: Extra headers, e.g. a gateway's routing key.
         organization: OpenAI organization/project routing.
+        thinking_disabled: Send ``thinking={"type": "disabled"}`` with every
+            Anthropic-format request. Needed by endpoints whose reasoning/
+            "thinking" mode is on by default, because that mode rejects the
+            forced ``tool_choice`` the decision engine depends on.
     """
 
     kind: str = PROVIDER_ANTHROPIC
@@ -115,6 +119,7 @@ class LlmProviderConfig:
     max_tokens: int = 1024
     extra_headers: Dict[str, str] = field(default_factory=dict)
     organization: Optional[str] = None
+    thinking_disabled: bool = False
 
     @property
     def is_disabled(self) -> bool:
@@ -143,6 +148,8 @@ class LlmProviderConfig:
         ``AGENT_LLM_API_VERSION``    Azure ``api-version``
         ``AGENT_LLM_TIMEOUT_SECONDS``per-request timeout
         ``AGENT_LLM_MAX_TOKENS``     completion budget
+        ``AGENT_LLM_THINKING_DISABLED``
+                                     ``1`` turns off a gateway's thinking mode
         ``AGENT_DECISION_MODEL``     legacy alias for the model id
         ===========================  =========================================
 
@@ -172,6 +179,7 @@ class LlmProviderConfig:
             max_tokens=_env_int(source, "AGENT_LLM_MAX_TOKENS", 1024),
             extra_headers=_parse_headers(source.get("AGENT_LLM_EXTRA_HEADERS")),
             organization=str(source.get("AGENT_LLM_ORGANIZATION") or "").strip() or None,
+            thinking_disabled=_env_bool(source, "AGENT_LLM_THINKING_DISABLED", False),
         )
 
 
@@ -245,12 +253,53 @@ def _env_int(source: Mapping[str, str], name: str, default: int) -> int:
         return default
 
 
+#: Spellings accepted as "on" for a boolean flag.
+_TRUTHY = {"1", "true", "yes", "y", "on"}
+
+
+def _env_bool(source: Mapping[str, str], name: str, default: bool = False) -> bool:
+    """
+    Parse a boolean flag.
+
+    Anything unrecognised (including an empty value) falls back to the default,
+    for the same reason :func:`_env_float` does: a typo in a deployment's
+    environment must not take the agent down.
+    """
+    raw = str(source.get(name) or "").strip().lower()
+    if not raw:
+        return default
+    return raw in _TRUTHY
+
+
 class _MessagesResource:
     """The ``client.messages`` namespace both adapters expose."""
 
     def create(self, **kwargs: Any) -> Dict[str, Any]:  # pragma: no cover - abstract
         """Create a completion. Implemented by subclasses."""
         raise NotImplementedError
+
+
+class _ThinkingDisabledMessages(_MessagesResource):
+    """
+    ``client.messages`` wrapper that turns a gateway's thinking mode off.
+
+    Several Anthropic-compatible endpoints (DeepSeek, for one) default to a
+    reasoning mode that rejects ``tool_choice={"type": "tool", ...}`` with a 400
+    -- which is exactly the forced choice the DECIDE step needs. Sending
+    ``thinking={"type": "disabled"}`` makes them accept it. Real Anthropic treats
+    that value as its own default, so this is opt-in rather than always-on.
+
+    A caller that sets ``thinking`` itself keeps its own value.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        """Args: inner: The SDK's ``messages`` resource."""
+        self._inner = inner
+
+    def create(self, **kwargs: Any) -> Any:
+        """Create a completion with thinking explicitly disabled."""
+        kwargs.setdefault("thinking", {"type": "disabled"})
+        return self._inner.create(**kwargs)
 
 
 class AnthropicMessagesClient:
@@ -262,15 +311,28 @@ class AnthropicMessagesClient:
     branch on the vendor and tests can substitute any of them.
     """
 
-    def __init__(self, client: Any, *, provider: str = PROVIDER_ANTHROPIC) -> None:
+    def __init__(
+        self,
+        client: Any,
+        *,
+        provider: str = PROVIDER_ANTHROPIC,
+        thinking_disabled: bool = False,
+    ) -> None:
         """
         Args:
             client: An ``anthropic.Anthropic`` instance.
             provider: Kind label, surfaced for diagnostics.
+            thinking_disabled: Wrap ``messages`` so every request turns the
+                endpoint's thinking mode off (see
+                :class:`_ThinkingDisabledMessages`).
         """
         self._client = client
         self.provider = provider
-        self.messages = client.messages
+        self.messages = (
+            _ThinkingDisabledMessages(client.messages)
+            if thinking_disabled
+            else client.messages
+        )
 
     def describe(self) -> str:
         """One-line description for logs and health checks."""
@@ -683,6 +745,10 @@ def create_llm_client(
 
     Raises:
         MissingLlmSdkError: When Anthropic is selected but the SDK is absent.
+        LlmProviderError: When Anthropic is selected with no credential. The SDK
+            now accepts an empty key at construction and only fails at request
+            time, which would turn every decision into a wasted 401 round trip
+            instead of the documented rules-only fallback.
     """
     resolved = config or LlmProviderConfig.from_env(env)
 
@@ -690,8 +756,19 @@ def create_llm_client(
         return None
 
     if resolved.kind == PROVIDER_ANTHROPIC:
+        if not resolved.api_key:
+            raise LlmProviderError(
+                "No credential is configured for the Anthropic provider; set "
+                "AGENT_LLM_API_KEY or ANTHROPIC_API_KEY. Set "
+                "AGENT_LLM_PROVIDER=disabled to choose the rule engine outright."
+            )
         return AnthropicMessagesClient(
-            _create_anthropic_sdk_client(resolved.api_key)
+            _create_anthropic_sdk_client(
+                resolved.api_key,
+                base_url=resolved.base_url,
+                timeout=resolved.timeout_seconds,
+            ),
+            thinking_disabled=resolved.thinking_disabled,
         )
 
     if not resolved.model:
@@ -701,8 +778,30 @@ def create_llm_client(
     return OpenAiCompatibleClient(resolved, transport=transport)
 
 
-def _create_anthropic_sdk_client(api_key: Optional[str]) -> Any:
-    """Instantiate the real Anthropic SDK client (lazy import)."""
+def _create_anthropic_sdk_client(
+    api_key: Optional[str],
+    *,
+    base_url: Optional[str] = None,
+    timeout: Optional[float] = None,
+) -> Any:
+    """
+    Instantiate the real Anthropic SDK client (lazy import).
+
+    ``base_url`` points the SDK at an Anthropic-compatible endpoint other than
+    the vendor's own: a proxy, an on-prem gateway, or a provider that speaks the
+    Messages API. Forwarding it is what makes such a deployment work at all --
+    without it the SDK talks to ``api.anthropic.com``, so a third-party key is
+    both leaked to Anthropic and rejected with 401, and the agent silently
+    degrades to the rule engine.
+
+    Args:
+        api_key: Credential; the SDK falls back to its own lookup when omitted.
+        base_url: Endpoint root; the SDK default applies when blank.
+        timeout: Per-request timeout in seconds.
+
+    Raises:
+        MissingLlmSdkError: When the ``anthropic`` package is not installed.
+    """
     try:
         import anthropic  # noqa: PLC0415 - intentionally lazy
     except ImportError as exc:
@@ -711,9 +810,15 @@ def _create_anthropic_sdk_client(api_key: Optional[str]) -> Any:
             "Install it with 'pip install anthropic', or select an "
             "OpenAI-compatible provider with AGENT_LLM_PROVIDER=openai."
         ) from exc
+
+    kwargs: Dict[str, Any] = {}
     if api_key:
-        return anthropic.Anthropic(api_key=api_key)
-    return anthropic.Anthropic()
+        kwargs["api_key"] = api_key
+    if base_url:
+        kwargs["base_url"] = base_url
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return anthropic.Anthropic(**kwargs)
 
 
 def describe_llm_setup(

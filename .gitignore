@@ -41,6 +41,7 @@ env/
 *.sqlite
 *.db
 audit_log.json
+audit_log.generation.json
 
 # Environment Variables
 .env

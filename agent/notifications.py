@@ -13,12 +13,13 @@ which keeps the offline demo and the live provider paths behind one interface.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from agent.delivery import (
     DeliveryBackend,
     NotificationOutcome,
     PrintDeliveryBackend,
+    _env_flag,
     missing_recipient_outcome,
 )
 from core.models import PatientRecord, ContactChannel, FollowUpCase
@@ -294,15 +295,25 @@ class MessageComposerAgent:
     for patients based on their profile, language preference,
     urgency level, and treatment type.
 
-    In production, this would use an LLM (e.g., OpenAI GPT, Claude)
-    to generate natural, empathetic messages. For this demo, it uses
-    template-based generation.
+    Two modes, chosen by the caller:
+
+    * ``use_llm=True`` -- the configured model writes the text (see
+      :meth:`_compose_with_llm`). The model is only ever *asked* to draft; every
+      failure path (no credential, unreachable endpoint, empty or unusable
+      reply) falls back to the template, so a draft always exists.
+    * ``use_llm=False`` -- the deterministic template, which is what the offline
+      demo and the tests use.
+
+    ``last_source`` records which of the two produced the most recent message, so
+    callers can report and audit where a patient-facing draft came from.
     """
 
     def __init__(
         self,
         use_llm: bool = False,
         llm_api_key: Optional[str] = None,
+        client: Optional[Any] = None,
+        model: Optional[str] = None,
         portal_link_provider: Optional[Callable[[str], str]] = None,
         booking_window_days: int = 7,
     ):
@@ -312,6 +323,11 @@ class MessageComposerAgent:
         Args:
             use_llm: Whether to use LLM for message generation
             llm_api_key: API key for LLM service (if use_llm=True)
+            client: Pre-built LLM client (anything exposing ``messages.create``).
+                Tests inject a fake here; when omitted and ``use_llm`` is set, one
+                is built from the environment on first use.
+            model: Model id to request. Defaults to the provider configuration's
+                own model.
             portal_link_provider: Optional ``patient_id -> portal URL``
                 callable. When given, AND ``message_type == "no_show"``
                 (see ``_compose_with_template``), the message embeds a
@@ -338,6 +354,11 @@ class MessageComposerAgent:
         self.llm_api_key = llm_api_key
         self.portal_link_provider = portal_link_provider
         self.booking_window_days = booking_window_days
+        self._client = client
+        self.model = model
+        self._client_resolved = client is not None
+        self.last_error: Optional[str] = None
+        self.last_source = "template"
 
     def compose(self, case: FollowUpCase, message_type: str = "initial") -> str:
         """
@@ -358,8 +379,8 @@ class MessageComposerAgent:
         """
         if self.use_llm:
             return self._compose_with_llm(case, message_type)
-        else:
-            return self._compose_with_template(case, message_type)
+        self.last_source = "template"
+        return self._compose_with_template(case, message_type)
 
     def _compose_with_template(self, case: FollowUpCase, message_type: str) -> str:
         """
@@ -444,29 +465,96 @@ class MessageComposerAgent:
 
     def _compose_with_llm(self, case: FollowUpCase, message_type: str) -> str:
         """
-        Generate message using LLM (placeholder for future implementation).
+        Ask the configured model to draft the patient message.
 
-        This would send a prompt to an LLM service with context about
-        the patient and case, receiving a personalized message in return.
+        The model only writes text: it cannot choose the recipient, the channel,
+        or whether to send at all -- those stay with the decision engine and the
+        policy guard, and the message is queued for staff confirmation before
+        anything leaves the clinic.
+
+        Any failure degrades to the template rather than surfacing an exception,
+        because a missing draft would silently drop the patient from the outreach
+        queue. The reason is kept in :attr:`last_error`.
         """
-        # Placeholder for LLM integration
-        # In production, would call OpenAI API, Claude API, etc.
+        client = self._llm_client()
+        if client is None:
+            return self._fallback_to_template(case, message_type, self.last_error)
 
-        prompt = f"""
-        Generate a friendly, professional reminder message for a dental patient with these details:
-        - Patient name: {case.patient.name}
-        - Treatment type: {case.patient.treatment_type}
-        - Days overdue: {case.days_overdue}
-        - Urgency: {case.urgency.value}
-        - Language: {case.patient.language}
-        - Message type: {message_type}
+        try:
+            response = client.messages.create(
+                model=self.model or _compose_model(),
+                max_tokens=512,
+                system=COMPOSER_SYSTEM_PROMPT,
+                messages=[
+                    {"role": "user", "content": self._compose_prompt(case, message_type)}
+                ],
+            )
+            message = _first_text(response)
+        except Exception as exc:
+            return self._fallback_to_template(
+                case, message_type, f"{type(exc).__name__}: {exc}"
+            )
 
-        Keep the message concise (under 160 characters for SMS compatibility),
-        warm but professional, and include a clear call-to-action.
+        if not message:
+            return self._fallback_to_template(
+                case, message_type, "model returned no text"
+            )
+
+        self.last_error = None
+        self.last_source = "llm"
+        return message
+
+    def _llm_client(self) -> Optional[Any]:
         """
+        The client used for drafting, or ``None`` when none can be built.
 
-        # For demo, fall back to template
+        Resolution is lazy and cached so importing this module never touches
+        credentials, and a failed lookup is not retried on every message.
+        """
+        if self._client_resolved:
+            return self._client
+        self._client_resolved = True
+        try:
+            from tools.llm_providers import LlmProviderConfig, create_llm_client
+
+            config = LlmProviderConfig.from_env()
+            if self.llm_api_key:
+                config.api_key = self.llm_api_key
+            self._client = create_llm_client(config)
+        except Exception as exc:
+            self._client = None
+            self.last_error = f"{type(exc).__name__}: {exc}"
+        return self._client
+
+    def _fallback_to_template(
+        self, case: FollowUpCase, message_type: str, reason: Optional[str]
+    ) -> str:
+        """Draft from the template, recording why the model was not used."""
+        self.last_error = reason
+        self.last_source = "template"
         return self._compose_with_template(case, message_type)
+
+    @staticmethod
+    def _compose_prompt(case: FollowUpCase, message_type: str) -> str:
+        """The patient context handed to the model for one draft."""
+        patient = case.patient
+        return (
+            "Draft the patient-facing message described below.\n\n"
+            f"Patient name: {patient.name}\n"
+            f"Treatment: {patient.treatment_type.replace('_', ' ')}\n"
+            f"Days past the recommended appointment date: {case.days_overdue}\n"
+            f"Urgency: {case.urgency.value}\n"
+            f"Patient's preferred language: {patient.language}\n"
+            f"Message purpose: {message_type} "
+            f"({COMPOSER_MESSAGE_TYPES.get(message_type, message_type)})\n"
+            f"Previous reminders sent: {case.reminder_count}\n\n"
+            "Requirements: plain text only, no markdown or placeholders, no "
+            "invented appointment times, warm and professional. Keep it under "
+            "320 characters so the same draft fits an SMS. Greet the patient by "
+            "name, make the specific treatment and how overdue they are clear, and "
+            "end with one clear call to action. "
+            f"Sign off as {COMPOSER_SIGNATURE}."
+        )
 
     def compose_slot_proposal(self, case: FollowUpCase, available_slots: list) -> str:
         """
@@ -499,3 +587,95 @@ Best regards,
 Your Dental Care Team"""
 
         return message
+
+
+def _compose_model() -> str:
+    """Model id for drafting: the general LLM model, then the decision model."""
+    import os
+
+    return os.environ.get("AGENT_LLM_MODEL") or os.environ.get("AGENT_DECISION_MODEL") or ""
+
+
+def _first_text(response: Any) -> str:
+    """
+    Extract the assistant's text from a provider response.
+
+    Handles the Anthropic SDK's block objects and the dict shape the
+    OpenAI-compatible adapter returns, so the composer does not care which
+    vendor answered.
+    """
+    if response is None:
+        return ""
+    blocks = response.get("content") if isinstance(response, dict) else getattr(
+        response, "content", None
+    )
+    if blocks is None:
+        return ""
+    if isinstance(blocks, str):
+        return _clean_message(blocks)
+
+    parts = []
+    for block in blocks:
+        if isinstance(block, str):
+            parts.append(block)
+            continue
+        block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+        if block_type not in (None, "text"):
+            continue
+        text = block.get("text") if isinstance(block, dict) else getattr(block, "text", None)
+        if text:
+            parts.append(str(text))
+    return _clean_message("\n".join(parts))
+
+
+def _clean_message(raw: str) -> str:
+    """Trim model noise (code fences, surrounding quotes) off a draft."""
+    text = str(raw or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if "\n" in text:
+            first, rest = text.split("\n", 1)
+            if first.strip().lower() in ("text", "plaintext", "markdown"):
+                text = rest
+    return text.strip().strip('"').strip()
+
+
+COMPOSER_SYSTEM_PROMPT = (
+    "You write short, warm, professional appointment reminders on behalf of a "
+    "dental clinic. You write one message per request, in the patient's "
+    "preferred language, with no markdown and no invented details. A "
+    "staff member reviews and may edit every message before it is sent, so "
+    "never include placeholders that a human would have to fill in."
+)
+
+COMPOSER_MESSAGE_TYPES = {
+    "initial": "a first reminder for an overdue appointment",
+    "reminder": "a follow-up reminder for a patient who has not yet replied",
+    "urgent": "an urgent reminder for a patient who is significantly overdue",
+}
+
+COMPOSER_SIGNATURE = "the clinic's care team"
+
+
+def message_composer_from_environment(
+    portal_link_provider: Optional[Callable[[str], str]] = None,
+    booking_window_days: int = 7,
+) -> MessageComposerAgent:
+    """
+    Build the composer the application should use.
+
+    Model-written drafts are opt-in via ``AGENT_LLM_COMPOSE_MESSAGES`` so that a
+    clinic can keep deterministic template text, and so an offline run never
+    depends on a reachable endpoint. Turning it on cannot break drafting: every
+    failure degrades to the template.
+
+    ``portal_link_provider``/``booking_window_days`` are forwarded unchanged so
+    that turning model drafting on does not silently drop the patient-specific
+    no-show portal link the caller already wired in.
+    """
+    use_llm = _env_flag("AGENT_LLM_COMPOSE_MESSAGES")
+    return MessageComposerAgent(
+        use_llm=use_llm,
+        portal_link_provider=portal_link_provider,
+        booking_window_days=booking_window_days,
+    )

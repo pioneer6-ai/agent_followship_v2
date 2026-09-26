@@ -241,7 +241,7 @@ Credentials come from the standard boto3 chain, with one caveat: a CLI
 otherwise the tools report `config_missing` with `NoCredentialsError`.
 
 ```bash
-eval "$(aws configure export-credentials --export-env)"
+eval "$(aws configure export-credentials --format env)"
 ```
 
 While the account is sandboxed the tools **refuse** any recipient outside those

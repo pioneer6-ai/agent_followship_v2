@@ -17,11 +17,12 @@ tzdata==2024.1
 # data parsing (handles messy/swapped field values). Also drives the openai-
 # compatible path in tools/llm_providers.py (Gemini, vLLM, LiteLLM, etc.).
 openai==1.51.0
-# Required for LIVE Claude usage: the tools/ tool-use loop AND the agent's
-# DECIDE step (agent/decision.py). Everything else, including the offline demo
-# and the whole test suite, runs without it -- the import is lazy and the agent
-# silently falls back to its rule engine when it is missing.
-# anthropic==0.40.0
+# Required for LIVE Claude (or any Anthropic-compatible endpoint) usage: the
+# tools/ tool-use loop AND the agent's DECIDE step (agent/decision.py). Everything
+# else, including the offline demo and the whole test suite, runs without it --
+# the import is lazy and the agent silently falls back to its rule engine when it
+# is missing.
+anthropic==1.8.0
 
 # For production SMS/Communication (optional, not needed for demo)
 # twilio==8.11.0

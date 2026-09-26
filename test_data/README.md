@@ -37,6 +37,15 @@ Natural language format (hardest to parse)
 - Inconsistent formatting
 - Tests LLM's natural language understanding
 
+### 6. **demo_21_critical_patients.csv**
+Purpose-built for the Review Patient Messages workflow, not for parser testing
+- 21 patients, all ~214 days overdue, so every one lands at `critical` urgency
+- Every row's phone and email is the **verified test contact**
+  (`+6583536885` / `martinchenonly1@gmail.com`), so a live run can walk the whole
+  draft -> edit -> Confirm Selected workflow without messaging anyone real
+- Upload it, import it, then open `/staff/outreach`: the import auto-runs a
+  cycle, so 21 drafts are waiting
+
 ## 🧪 How to Test:
 
 1. Start the Flask application:

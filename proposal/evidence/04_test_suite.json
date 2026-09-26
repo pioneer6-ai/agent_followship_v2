@@ -1,0 +1,171 @@
+{
+  "generated_at": "2026-09-25T09:47:34+00:00",
+  "run": {
+    "command": "/Users/martinchen/agent_followship_v2/.venv/bin/python -m pytest tests -q",
+    "returncode": 0,
+    "output": "........................................................................ [  8%]\n........................................................................ [ 17%]\n........................................................................ [ 26%]\n........................................................................ [ 35%]\n........................................................................ [ 44%]\n........................................................................ [ 53%]\n........................................................................ [ 62%]\n........................................................................ [ 71%]\n........................................................................ [ 79%]\n........................................................................ [ 88%]\n........................................................................ [ 97%]\n...................                                                      [100%]\n=============================== warnings summary ===============================\ntests/test_web_upload.py: 12 warnings\n  /Users/martinchen/agent_followship_v2/.venv/lib/python3.14/site-packages/openpyxl/packaging/core.py:99: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n    now = datetime.datetime.utcnow()\n\ntests/test_web_upload.py::TestExcelUpload::test_an_xlsx_upload_is_parsed\ntests/test_web_upload.py::TestExcelUpload::test_an_xlsx_and_a_csv_of_the_same_data_agree\ntests/test_web_upload.py::TestExcelUpload::test_a_date_cell_keeps_the_date_only\ntests/test_web_upload.py::TestExcelUpload::test_blank_rows_are_skipped\n  /Users/martinchen/agent_followship_v2/.venv/lib/python3.14/site-packages/openpyxl/writer/excel.py:292: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).\n    workbook.properties.modified = datetime.datetime.utcnow()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n811 passed, 16 warnings in 14.43s\n"
+  },
+  "summary": {
+    "passed": 811,
+    "failed": 0,
+    "skipped": 0,
+    "errors": 0,
+    "warnings": 16,
+    "duration_s": 14.43,
+    "summary_line": "811 passed, 16 warnings in 14.43s"
+  },
+  "inventory": [
+    {
+      "module": "tests/test_agent_delivery.py",
+      "lines": 1093,
+      "tests": 50
+    },
+    {
+      "module": "tests/test_agent_loop.py",
+      "lines": 643,
+      "tests": 39
+    },
+    {
+      "module": "tests/test_auth_calendar.py",
+      "lines": 549,
+      "tests": 20
+    },
+    {
+      "module": "tests/test_aws_tools.py",
+      "lines": 727,
+      "tests": 73
+    },
+    {
+      "module": "tests/test_baseline_urgency.py",
+      "lines": 172,
+      "tests": 6
+    },
+    {
+      "module": "tests/test_booking_protection.py",
+      "lines": 643,
+      "tests": 13
+    },
+    {
+      "module": "tests/test_booking_window.py",
+      "lines": 102,
+      "tests": 7
+    },
+    {
+      "module": "tests/test_calendar_auth.py",
+      "lines": 358,
+      "tests": 15
+    },
+    {
+      "module": "tests/test_calendar_date_shift.py",
+      "lines": 388,
+      "tests": 7
+    },
+    {
+      "module": "tests/test_calendar_migrations.py",
+      "lines": 94,
+      "tests": 5
+    },
+    {
+      "module": "tests/test_calendar_unification.py",
+      "lines": 527,
+      "tests": 18
+    },
+    {
+      "module": "tests/test_clock.py",
+      "lines": 53,
+      "tests": 7
+    },
+    {
+      "module": "tests/test_conversation_signals.py",
+      "lines": 190,
+      "tests": 16
+    },
+    {
+      "module": "tests/test_docs_consistency.py",
+      "lines": 520,
+      "tests": 20
+    },
+    {
+      "module": "tests/test_error_taxonomy.py",
+      "lines": 131,
+      "tests": 14
+    },
+    {
+      "module": "tests/test_hospital_setup.py",
+      "lines": 746,
+      "tests": 64
+    },
+    {
+      "module": "tests/test_llm_providers.py",
+      "lines": 718,
+      "tests": 79
+    },
+    {
+      "module": "tests/test_orchestrator_safety.py",
+      "lines": 535,
+      "tests": 22
+    },
+    {
+      "module": "tests/test_patient_portal.py",
+      "lines": 621,
+      "tests": 31
+    },
+    {
+      "module": "tests/test_patient_portal_loading_regression.py",
+      "lines": 243,
+      "tests": 5
+    },
+    {
+      "module": "tests/test_patient_portal_slot_times.py",
+      "lines": 598,
+      "tests": 16
+    },
+    {
+      "module": "tests/test_policy_guard.py",
+      "lines": 179,
+      "tests": 15
+    },
+    {
+      "module": "tests/test_providers.py",
+      "lines": 576,
+      "tests": 48
+    },
+    {
+      "module": "tests/test_staff_management.py",
+      "lines": 428,
+      "tests": 10
+    },
+    {
+      "module": "tests/test_tool_contract.py",
+      "lines": 391,
+      "tests": 29
+    },
+    {
+      "module": "tests/test_trigger_service.py",
+      "lines": 111,
+      "tests": 10
+    },
+    {
+      "module": "tests/test_urgency_config.py",
+      "lines": 73,
+      "tests": 9
+    },
+    {
+      "module": "tests/test_urgency_scorer.py",
+      "lines": 139,
+      "tests": 7
+    },
+    {
+      "module": "tests/test_web_upload.py",
+      "lines": 367,
+      "tests": 26
+    }
+  ],
+  "environment": {
+    "python": "3.14.5",
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O"
+  },
+  "artifacts": {
+    "raw_output": "proposal/evidence/artifacts/pytest_output.txt"
+  }
+}
