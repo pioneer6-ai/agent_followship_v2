@@ -12,12 +12,12 @@ date: "27 September 2026"
 | --- | --- |
 | Prepared for | Clinic operations and IT decision-makers |
 | Purpose | Deployment acceptance: what was measured, on which revision, and what remains unproven |
-| Evidence revision | `fbcc6c1ca09a7624fd5f01016e674cacdc4a5287` |
+| Original evidence revision | `fbcc6c1ca09a7624fd5f01016e674cacdc4a5287` |
 | Pack location | `proposal/evidence/` |
-| Contents | 8 numbered reports, 3 raw artifacts, 5 visual artifacts |
-| Pack provenance | Reports 1–7 captured by script on 2026-09-25, 09:02–09:47 UTC; report 8 is an operator-supplied screen capture (section 10) |
+| Contents | 8 historical reports plus Lightsail deployment evidence; 2 available raw artifacts; 6 visual artifacts |
+| Pack provenance | Reports 1–7 captured by script on 2026-09-25, 09:02–09:47 UTC; operator-supplied screenshots in sections 10 and 16 |
 | Document date | 27 September 2026 |
-| Rendered by | `proposal/scripts/build_deployment_evidence_pdf.py` |
+| Rendering | Markdown and shared print stylesheet, rendered with Chromium |
 
 ---
 
@@ -26,12 +26,12 @@ date: "27 September 2026"
 **27 September update.** Section 16 adds AWS Lightsail deployment progress from
 the deployment conversation and operator record. Its provenance and remaining
 LLM quota blocker are stated separately from the original captured reports.
-The existing PDF has not been rebuilt for this Markdown update.
+The deployment evidence PDF includes this update and the public dashboard screenshot.
 
 The first seven reports under `proposal/evidence/` were captured independently,
 each by its own script, on 25 September 2026 between 09:02 and 09:47 UTC. Report 8
-was contributed afterwards by the operator as a screen capture, which makes it the
-one artifact in this pack that no script produced and nobody can re-derive;
+was contributed afterwards by the operator as a screen capture, which makes it an
+operator-supplied artifact that no capture script can reproduce;
 section 10 states what that costs. This document consolidates the eight: it
 restates every figure, records the SHA-256 of each artifact as recomputed for this
 PDF, and keeps the boundary between *measured* and *assumed* explicit.
@@ -594,7 +594,7 @@ Two further cross-checks, both recomputable from files in this repository:
 
 ### What it does not prove
 
-> This is the one artifact in the pack that no capture script produced. No one can
+> This is an operator-supplied artifact that no capture script produced. No one can
 > re-run it, and the hash above pins the bytes this pack ships, not the provenance of
 > the screen it records.
 
@@ -620,10 +620,16 @@ Two further cross-checks, both recomputable from files in this repository:
 
 ---
 
-## 11. Artifact integrity — hashes as recomputed for this PDF
+## 11. Artifact integrity — historical hash record
+
+The table below retains the hash record from the earlier document build.
+It is not a new verification of every artifact for the 27 September PDF.
+`artifacts/audit_log.generation.json` is listed historically but is absent from
+the current repository; its recorded hash cannot be verified from this checkout.
+The new Lightsail screenshot is recorded separately in section 16.6.
 
 The pack's value rests on artifacts being the same bytes the reports were written
-from. Every artifact was re-hashed for this document. Full SHA-256, with the size
+from. Full SHA-256, with the size
 recorded in `00_index.md` beside the size on disk. One row is marked
 hand-contributed: its hash pins the bytes this pack ships, but no capture script
 produced it, so there is nothing for a reviewer to re-run. Rows carrying a
@@ -658,7 +664,7 @@ subsections below.
 | `screenshots/patient_inbox_received.png` | 365,876 | `6302c9b8941f048ede4c527671513d48be1188bfa469c5c5e0e4bd94ea70a2c9` | yes (hand-contributed; section 10) |
 | `screenshots/patient_portal.png` | 736,923 | `b919902b944a98d3cc730abafc2248ea60f991bce62c82bbdac700dfcd486b20` | yes |
 
-### The two stale index entries — and the one artifact no script produced
+### Historical index corrections and operator-supplied evidence
 
 `00_index.md` records hashes and sizes for every report. In the revision this pack
 was first built from, entries 3 and 4 did not match their files. That is exactly the
@@ -722,7 +728,7 @@ regenerated afterwards, so the hashes pinned above attest to the corrected files
 
 ## 12. Independent re-run on the current revision
 
-The reports above are pinned to `fbcc6c1`. The revision that ships this document is
+The reports above are pinned to `fbcc6c1`. The revision used for this historical re-run was
 `c39c91f` (`master`, 2026-09-26), 21 commits later, and the pack's own
 snapshot-scope notes ask a reader to re-capture rather than extrapolate. Those
 commits are not documentation only: they include the move of all LLM configuration
@@ -870,8 +876,8 @@ SHA-256 of every artifact at the moment the index was generated.
 This PDF itself is generated, not assembled by hand: it is
 `proposal/deployment_evidence.md` rendered through the same pandoc → headless
 Chrome pipeline as the proposal, with the shared print stylesheet in
-`proposal/assets/proposal.css`. Re-running the build reproduces it byte for byte
-from the markdown, and the script verifies the result rather than assuming
+`proposal/assets/proposal.css`. Re-running the build renders the Markdown content; PDF bytes can vary by
+renderer and build metadata. The script checks the result rather than assuming
 success — it checks the PDF magic bytes, rejects a suspiciously small file, and
 reports the page count.
 
@@ -1005,7 +1011,7 @@ With the application deployed, the next step was to validate its LLM connection.
 The following debugging record concerns that integration; the public dashboard
 and service startup above establish the application deployment outcome.
 
-### Bedrock gateway configuration and authentication debugging
+##### Bedrock gateway configuration and authentication debugging
 
 The chat used the application's OpenAI-compatible adapter to target the hackathon
 Bedrock gateway with this configuration. The key below is a placeholder only:
@@ -1039,7 +1045,7 @@ instructed the operator to persist the corrected JSON in `.env` and restart
 The earlier successful service startup therefore does not establish that the
 running service inherited the subsequently corrected header.
 
-### Rules fallback and remaining validation
+##### Rules fallback and remaining validation
 
 The conversation describes `LlmDecisionEngine` catching provider failures and
 falling back to `RuleDecisionEngine`, with decisions still passing through
