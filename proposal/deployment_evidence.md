@@ -1,12 +1,12 @@
 ---
 title: "Patient Follow-up Agent - Deployment Evidence"
 subtitle: "Consolidated evidence pack for the pilot deployment"
-date: "26 September 2026"
+date: "27 September 2026"
 ---
 
 # Patient Follow-up Agent - Deployment Evidence
 
-**Consolidated evidence pack — eight reports, their raw artifacts, and a re-check of every hash**
+**Consolidated evidence pack — eight reports, their raw artifacts, and AWS Lightsail deployment progress**
 
 | | |
 | --- | --- |
@@ -16,12 +16,17 @@ date: "26 September 2026"
 | Pack location | `proposal/evidence/` |
 | Contents | 8 numbered reports, 3 raw artifacts, 5 visual artifacts |
 | Pack provenance | Reports 1–7 captured by script on 2026-09-25, 09:02–09:47 UTC; report 8 is an operator-supplied screen capture (section 10) |
-| Document date | 26 September 2026 |
+| Document date | 27 September 2026 |
 | Rendered by | `proposal/scripts/build_deployment_evidence_pdf.py` |
 
 ---
 
 ## 1. How to read this pack
+
+**27 September update.** Section 16 adds AWS Lightsail deployment progress from
+the deployment conversation and operator record. Its provenance and remaining
+LLM quota blocker are stated separately from the original captured reports.
+The existing PDF has not been rebuilt for this Markdown update.
 
 The first seven reports under `proposal/evidence/` were captured independently,
 each by its own script, on 25 September 2026 between 09:02 and 09:47 UTC. Report 8
@@ -58,8 +63,10 @@ were separately observed sitting in that same inbox (report 8). Placement is
 therefore inconsistent rather than uniformly bad, which does not change the fix — a
 clinic-owned, authenticated domain, warmed — only the odds of a reminder being seen
 in the meantime. SES is still in the sandbox and the SMS channel is not subscribed.
-The deployment is functionally complete and provisionally blocked — the blockers
-are account provisioning and sender reputation, not code.
+For the original eight-report snapshot, the recorded delivery blockers are
+account provisioning and sender reputation. The later Lightsail progress record
+in section 16 also records a gateway token-quota blocker; successful model output
+on that host remains unverified.
 
 ---
 
@@ -805,8 +812,8 @@ revision, on a different interpreter, and it should be read that way.
 
 ## 14. Open items this pack hands to provisioning
 
-None of these are development tasks, and each one is the difference between a
-demonstrated system and a usable one:
+These provisioning, engineering and operational items remain outstanding.
+Section 16 adds the Lightsail gateway quota blocker and pending model validation:
 
 | # | Item | Evidence | Blocking for |
 | --- | --- | --- | --- |
@@ -867,3 +874,127 @@ Chrome pipeline as the proposal, with the shared print stylesheet in
 from the markdown, and the script verifies the result rather than assuming
 success — it checks the PDF magic bytes, rejects a suspiciously small file, and
 reports the page count.
+
+---
+
+## 16. AWS Lightsail deployment progress — conversation evidence
+
+Added 27 September 2026 from the operator's deployment record and the
+[Deploy To AWS Cloud conversation](https://chatgpt.com/c/6ab776d1-3dc4-83ec-b7cb-a7c7cdf57048).
+
+**Status.** The application was deployed publicly on AWS Lightsail with Nginx
+in front of Gunicorn and the `patient-agent` systemd service. The deployment
+record reports a successful `/api/status` check. Gateway authentication debugging
+progressed from HTTP 401 to an authenticated request targeting Claude Sonnet 4.5
+that returned **HTTP 429 `Token quota exceeded`**. A successful model completion
+and an actual `source=llm` agent decision on this Lightsail deployment remain
+unverified.
+
+### Evidence source and limits
+
+This section supplements the eight reports above; it is a conversation-based
+progress record, not a ninth scripted capture. The retrieved conversation
+contains the final debugging exchanges and textual interpretations of attached
+screenshots. Earlier infrastructure details are supplied by the operator in the
+continuation request. The original screenshot contents and earlier setup turns
+were not available in that retrieved text, so the table identifies their source.
+No new server checks, AWS queries, model calls or test-suite runs were performed
+for this documentation update. The earlier artifact hashes and runtime snapshots
+continue to describe their original captures, not this Lightsail host. The linked
+conversation may require access to the operator's ChatGPT account.
+
+### Infrastructure and application deployment
+
+| Milestone | Recorded progress | Evidence basis |
+| --- | --- | --- |
+| Lightsail instance | Ubuntu instance in Singapore, AWS region `ap-southeast-1`; 4 GB RAM, 2 vCPU and 80 GB SSD | Operator-supplied deployment record |
+| Stable public address | Static IP configured | Operator-supplied deployment record; address omitted here |
+| Repository | `pioneer6-ai/agent_followship_v2` cloned onto the instance | Operator-supplied deployment record; deployed commit not captured |
+| Runtime packages | Python 3.12.3, Git and Nginx installed | Operator-supplied deployment record |
+| Python environment | Virtual environment created and dependencies installed | Operator-supplied deployment record; retrieved debugging exchange also places the shell in the project and venv |
+| Application configuration | `.env` safety settings configured | Operator-supplied deployment record; exact safety variable values are not available in the retrieved text and are not reconstructed here |
+| Gunicorn and systemd | `patient-agent.service` started; Gunicorn 26.2.0 listening on `127.0.0.1:8080`, sync worker booted | Startup output transcribed in the retrieved conversation |
+| Public application | Nginx reverse proxy and public deployment working | Operator-supplied deployment record, also summarized in the chat handoff |
+| Status endpoint | `/api/status` succeeded | Operator-supplied deployment record, also summarized in the chat handoff; no raw Lightsail response body retained here |
+
+The startup output quoted in the chat was:
+
+```text
+Started patient-agent.service
+Starting gunicorn 26.2.0
+Listening at: http://127.0.0.1:8080
+Using worker: sync
+Booting worker
+```
+
+The recorded serving path is public traffic → Nginx → Gunicorn on
+`127.0.0.1:8080` → application, with systemd managing `patient-agent`.
+This establishes deployment progress at the time of the chat; it does not
+establish current uptime, reboot persistence, HTTPS configuration or load
+capacity. Section 7's localhost response and sections 5–6's earlier interpreter
+and test results must not be presented as captures from this Ubuntu instance.
+
+### Bedrock gateway configuration and authentication debugging
+
+The chat used the application's OpenAI-compatible adapter to target the hackathon
+Bedrock gateway with this configuration. The key below is a placeholder only:
+
+```env
+AGENT_LLM_PROVIDER=openai-compatible
+AGENT_LLM_MODEL=global.anthropic.claude-sonnet-4-5-20250929-v1:0
+AGENT_LLM_BASE_URL=https://api.softwaresystems.app/v1
+AGENT_LLM_API_KEY=
+AGENT_LLM_EXTRA_HEADERS={"X-API-Key":"REDACTED"}
+```
+
+| Step | Observation recorded in the chat | Interpretation |
+| --- | --- | --- |
+| Initial request | HTTP 401 `invalid gateway api key` | Gateway authentication was failing |
+| Header inspection | `dict_keys([])` | The adapter had no parsed extra header |
+| JSON diagnosis | Opening double quote before `X-API-Key` was missing; malformed JSON was parsed as an empty header mapping | Correct JSON quoting was required |
+| Corrected shell export | `dict_keys(['X-API-Key'])` | The adapter successfully loaded the header name without printing its secret value |
+| Model probe | A request through `create_llm_client()` targeted the Claude Sonnet 4.5 model above with `max_tokens=50` and the prompt `Reply with exactly BEDROCK_OK` | A direct gateway/model probe was attempted |
+| Final response | HTTP 429 `Token quota exceeded` | The chat recorded authentication as successful and the remaining blocker as the team's gateway token quota |
+
+The request reached the gateway for the configured Claude Sonnet 4.5 target.
+The transition from an authentication rejection to the quota response supports
+the chat's conclusion that authentication was resolved. **It does not prove
+that Bedrock executed the model or that Claude returned generated text.**
+`BEDROCK_OK` was the requested success marker, not an observed successful output.
+
+The successful header inspection followed a shell export. The chat then
+instructed the operator to persist the corrected JSON in `.env` and restart
+`patient-agent`; completion of that final persistence/restart step is not shown.
+The earlier successful service startup therefore does not establish that the
+running service inherited the subsequently corrected header.
+
+### Rules fallback and remaining validation
+
+The conversation describes `LlmDecisionEngine` catching provider failures and
+falling back to `RuleDecisionEngine`, with decisions still passing through
+Policy Guard before action:
+
+```text
+PERCEIVE → DECIDE → LLM provider error → RuleDecisionEngine → Policy Guard → ACT
+```
+
+The chat explicitly cautions that patient messages in startup logs do not prove
+Claude generated them, because deterministic fallback can produce application
+activity. This is the fallback behavior described in the conversation; the final
+direct model probe is not itself a captured agent cycle demonstrating fallback
+for that specific 429. No successful Lightsail `source=llm` decision or
+hash-identified fallback trace is added by this section.
+
+Outstanding validation from the chat:
+
+1. Restore or increase the team's gateway token quota through the organisers.
+2. Confirm the corrected header JSON is saved privately in `.env` and loaded by
+   the restarted `patient-agent` service, inspecting header names only.
+3. After quota is available, run one direct probe and record whether
+   `BEDROCK_OK` is actually returned.
+4. Run an agent cycle under the configured safety settings and retain a redacted
+   decision record establishing `source=llm`, or the actual error/fallback result.
+
+These are pending checks, not completed evidence. The earlier messaging limits
+and open items in section 14 remain in scope. No actual gateway API key is
+included in this write-up.
