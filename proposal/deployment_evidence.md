@@ -877,47 +877,47 @@ reports the page count.
 
 ---
 
-## 16. AWS Lightsail deployment progress — conversation evidence
+## 16. AWS Lightsail deployment — from server setup to a running public dashboard
 
-Added 27 September 2026 from the operator's deployment record and the
-[Deploy To AWS Cloud conversation](https://chatgpt.com/c/6ab776d1-3dc4-83ec-b7cb-a7c7cdf57048).
+Updated 27 September 2026 using the
+[Deploy To AWS Cloud conversation](https://chatgpt.com/c/6ab776d1-3dc4-83ec-b7cb-a7c7cdf57048),
+the operator's deployment record and the public dashboard screenshot supplied
+with this update.
 
-**Status.** The application was deployed publicly on AWS Lightsail with Nginx
-in front of Gunicorn and the `patient-agent` systemd service. The deployment
-record reports a successful `/api/status` check. Gateway authentication debugging
-progressed from HTTP 401 to an authenticated request targeting Claude Sonnet 4.5
-that returned **HTTP 429 `Token quota exceeded`**. A successful model completion
-and an actual `source=llm` agent decision on this Lightsail deployment remain
-unverified.
+**Deployment outcome.** The Patient Follow-up Agent was deployed to an Ubuntu
+server on AWS Lightsail in Singapore and opened successfully in a browser at
+`http://3.1.173.50`. The supplied screenshot shows the application's dashboard
+rendered at that public IP, including its controls and case counters. Together
+with the recorded Gunicorn startup and successful `/api/status` check, this
+documents the program running on the deployed server. Claude integration was a
+subsequent validation step and remained blocked by gateway token quota.
 
-### Evidence source and limits
+### 16.1 Provision the Lightsail server and public address
 
-This section supplements the eight reports above; it is a conversation-based
-progress record, not a ninth scripted capture. The retrieved conversation
-contains the final debugging exchanges and textual interpretations of attached
-screenshots. Earlier infrastructure details are supplied by the operator in the
-continuation request. The original screenshot contents and earlier setup turns
-were not available in that retrieved text, so the table identifies their source.
-No new server checks, AWS queries, model calls or test-suite runs were performed
-for this documentation update. The earlier artifact hashes and runtime snapshots
-continue to describe their original captures, not this Lightsail host. The linked
-conversation may require access to the operator's ChatGPT account.
+The deployment began with an Ubuntu Lightsail instance in Singapore
+(`ap-southeast-1`), sized at **4 GB RAM, 2 vCPU and 80 GB SSD**. A static IP was
+configured so the application could be reached at a stable public address.
+The final browser evidence below shows `3.1.173.50` in the address bar.
 
-### Infrastructure and application deployment
+### 16.2 Prepare Ubuntu and install the application
 
-| Milestone | Recorded progress | Evidence basis |
-| --- | --- | --- |
-| Lightsail instance | Ubuntu instance in Singapore, AWS region `ap-southeast-1`; 4 GB RAM, 2 vCPU and 80 GB SSD | Operator-supplied deployment record |
-| Stable public address | Static IP configured | Operator-supplied deployment record; address omitted here |
-| Repository | `pioneer6-ai/agent_followship_v2` cloned onto the instance | Operator-supplied deployment record; deployed commit not captured |
-| Runtime packages | Python 3.12.3, Git and Nginx installed | Operator-supplied deployment record |
-| Python environment | Virtual environment created and dependencies installed | Operator-supplied deployment record; retrieved debugging exchange also places the shell in the project and venv |
-| Application configuration | `.env` safety settings configured | Operator-supplied deployment record; exact safety variable values are not available in the retrieved text and are not reconstructed here |
-| Gunicorn and systemd | `patient-agent.service` started; Gunicorn 26.2.0 listening on `127.0.0.1:8080`, sync worker booted | Startup output transcribed in the retrieved conversation |
-| Public application | Nginx reverse proxy and public deployment working | Operator-supplied deployment record, also summarized in the chat handoff |
-| Status endpoint | `/api/status` succeeded | Operator-supplied deployment record, also summarized in the chat handoff; no raw Lightsail response body retained here |
+Git, Python **3.12.3** and Nginx were installed on the server. The
+`pioneer6-ai/agent_followship_v2` repository was cloned, a Python virtual
+environment was created, and the project dependencies were installed into it.
+Application configuration and safety settings were placed in `.env`.
 
-The startup output quoted in the chat was:
+These steps provided the application code, isolated Python runtime and server
+configuration required to launch the program. The retrieved debugging exchange
+also confirms that the operator was working inside the project directory with
+the virtual environment active. Exact shell commands, safety-setting values and
+the deployed commit were not retained in the retrieved record, so they are not
+reconstructed here. Credentials are excluded from this evidence pack.
+
+### 16.3 Run the program with Gunicorn and systemd
+
+Gunicorn served the Python application on the local address
+`127.0.0.1:8080`. The `patient-agent` systemd service managed the application
+process. After a restart, the conversation recorded this startup output:
 
 ```text
 Started patient-agent.service
@@ -927,12 +927,83 @@ Using worker: sync
 Booting worker
 ```
 
-The recorded serving path is public traffic → Nginx → Gunicorn on
-`127.0.0.1:8080` → application, with systemd managing `patient-agent`.
-This establishes deployment progress at the time of the chat; it does not
-establish current uptime, reboot persistence, HTTPS configuration or load
-capacity. Section 7's localhost response and sections 5–6's earlier interpreter
-and test results must not be presented as captures from this Ubuntu instance.
+This is the recorded server-side evidence that the service started, Gunicorn
+bound to the application port and a worker booted. The deployment record also
+reports a successful `/api/status` response, establishing that the application
+answered its status API. The raw Lightsail JSON response is not attached here;
+section 7's earlier localhost JSON belongs to a different capture.
+
+### 16.4 Publish the application through Nginx
+
+Nginx was configured as the reverse proxy for the Gunicorn application. Public
+browser requests reached Nginx on the Lightsail host and were forwarded to the
+application listening on `127.0.0.1:8080`:
+
+```text
+Browser: http://3.1.173.50
+          |
+          v
+AWS Lightsail Ubuntu server (Singapore, ap-southeast-1)
+          |
+          v
+Nginx reverse proxy
+          |
+          v
+Gunicorn: 127.0.0.1:8080
+          |
+          v
+Patient Follow-up Agent application
+
+Process manager: systemd service patient-agent
+```
+
+### 16.5 Evidence: the deployed program opens at the public IP
+
+The operator supplied the following browser screenshot. It shows the Patient
+Follow-up Agent Dashboard loaded at `3.1.173.50`:
+
+![Patient Follow-up Agent Dashboard served at the Lightsail public IP 3.1.173.50](evidence/screenshots/lightsail_public_dashboard.png)
+
+| Visible evidence | Observation |
+| --- | --- |
+| Browser address | `3.1.173.50`; browser labels the connection "Not secure" |
+| Application identity | **Patient Follow-up Agent Dashboard**, with the dental clinic patient recall subtitle |
+| Application controls | Run Daily Cycle, Clear view, Upload Patient List, Configure Urgency Rules, Follow-up Calendar and Review Messages |
+| Dashboard counters | Active cases **0**, critical cases **0**, escalated **0**, booked **2** |
+| Case panels | "No active cases" and "No escalations" |
+
+**What this demonstrates.** The public endpoint served the application's
+dashboard and the browser rendered its interface and displayed state. The
+deployment reached a visible, working application page. The booked counter is
+the value displayed by that page; it is not independent proof of two real
+patient bookings. This screenshot does not demonstrate that each control was
+exercised or that Claude produced a decision.
+
+### 16.6 Evidence provenance
+
+| Evidence | Source and scope |
+| --- | --- |
+| Instance specification, installation, `.env`, static IP and Nginx setup | Operator's account of the deployment steps in the continuation request |
+| Service startup | Output transcribed in the retrieved deployment conversation |
+| `/api/status` success | Operator's deployment record and the conversation handoff; raw response not retained here |
+| Public dashboard | Operator-supplied screenshot embedded above; original capture time not supplied |
+| Screenshot file | `proposal/evidence/screenshots/lightsail_public_dashboard.png` |
+| File size | 325,214 bytes |
+| SHA-256 | `66a556ba2f556d70f356e95aa1465431fe05784e430ae268da0a165dac977b72` |
+
+The screenshot is preserved as supplied. Its hash identifies the committed
+image bytes; it does not independently authenticate the server or capture time.
+This section adds evidence from the deployment session to the original eight
+reports. It does not change their historical hashes, test counts or runtime
+snapshots. The new image is recorded here and is not included in the older
+`00_index.md` snapshot. No fresh server probe or test-suite run was performed
+for this documentation update.
+
+### 16.7 Subsequent validation: Claude gateway quota blocker
+
+With the application deployed, the next step was to validate its LLM connection.
+The following debugging record concerns that integration; the public dashboard
+and service startup above establish the application deployment outcome.
 
 ### Bedrock gateway configuration and authentication debugging
 
